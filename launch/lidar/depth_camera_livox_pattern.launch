@@ -9,13 +9,12 @@
   <!-- <param name="max_frame" type="int" value="10" default="60"/> -->
 
   <arg name="stdout" default="screen"/>
-  <arg name="cloud_tp" default="/livox/lidar"/>
+  <arg name="cloud_tp" default="/vmpr_camera_depth/points"/>
   <arg name="use_RG_Pseg" default="false"/>
-  <arg name="use_passthrough_preprocess" default="false"/>
-  <arg name="ns_" default="livox"/>
-  <arg name="cluster_tole" default="0.08"/>
-  <arg name="i_filter_out_max" default="30"/>
-  <arg name="rmse_ukn2tpl_thre" default="0.04"/>
+  <arg name="use_passthrough_preprocess" default="true"/>
+  <arg name="ns_" default="depth_camera"/>
+  <arg name="cluster_tole" default="0.05"/>
+  <arg name="rmse_ukn2tpl_thre" default="0.05"/>
   <arg name="rmse_tpl2ukn_thre" default="0.03"/>
 
   <group ns="$(arg ns_)">
@@ -27,8 +26,8 @@
         <remap from="~output" to="$(arg cloud_tp)/x_filtered" />
         <rosparam>
           filter_field_name: x
-          filter_limit_min: 0
-          filter_limit_max: 10
+          filter_limit_min: -0.5
+          filter_limit_max: 2.5
           filter_limit_negative: False
           max_queue_size: 1
           keep_organized: False
@@ -40,8 +39,8 @@
         <remap from="~output" to="$(arg cloud_tp)/y_filtered" />
         <rosparam>
           filter_field_name: y
-          filter_limit_min: -5
-          filter_limit_max: 5
+          filter_limit_min: -1
+          filter_limit_max: 1
 
           filter_limit_negative: False
           max_queue_size: 1
@@ -54,27 +53,27 @@
       <remap from="~cloud_laser" to="$(arg cloud_tp)/y_filtered" if="$(arg use_passthrough_preprocess)"/>
       <remap from="~cloud_laser" to="$(arg cloud_tp)" unless="$(arg use_passthrough_preprocess)"/>
 
-      <param name="model_path" type="string" value="$(find lvt2calib)/data/template_pcl/four_circle_boundary.pcd"/>
-    
+      <param name="model_path" type="string" value="$(find lvt2calib)/data/template_pcl/output_boundary.pcd"/>
+      <!-- <param name="model_path" type="string" value="$(find lvt2calib)/data/template_pcl/four_circle_boundary.pcd"/> -->
+
       <param name="is_gazebo" type="bool" value="false"/>
 
       <param name="use_vox_filter" type="bool" value="true"/>
-      <param name="use_gauss_filter" type="bool" value="true"/>
+      <param name="use_gauss_filter" type="bool" value="false"/>
       <param name="use_statistic_filter" type="bool" value="false"/>
-      <param name="use_i_filter" type="bool" value="true"/>
-      <param name="use_gauss_filter2" type="bool" value="true"/>
+      <param name="use_i_filter" type="bool" value="false"/>
+      <param name="use_gauss_filter2" type="bool" value="false"/>
       <param name="queue_size" type="int" value="2"/>
       <param name="use_RG_Pseg" type="bool" value="$(arg use_RG_Pseg)"/>
       <param name="ns" type="string" value="$(arg ns_)"/>
 
       <rosparam command="load" file="$(find lvt2calib)/config/lidar_pattern_param.yaml"/>
       <param name="cluster_tole" value="$(arg cluster_tole)"/>
-      <param name="i_filter_out_max" value="$(arg i_filter_out_max)"/>
       <param name="rmse_ukn2tpl_thre" value="$(arg rmse_ukn2tpl_thre)"/>
       <param name="rmse_tpl2ukn_thre" value="$(arg rmse_tpl2ukn_thre)"/>
     </node>
 
-    <!-- <node type="rviz" name="rviz_livox" pkg="rviz" args="-d $(find lvt2calib)/rviz/livox_pattern.rviz" /> -->
+
     <node type="rviz" name="rviz_$(arg ns_)" pkg="rviz" args="-d $(find lvt2calib)/rviz/$(arg ns_)_pattern.rviz" />
 
   </group>

@@ -1,9 +1,18 @@
 <launch>
   <arg name="ifCompressed" default="false"/>
-  <arg name="image_tp" default="/thermal_cam/thermal_image"/>
-  <arg name="cam_info_dir" default="$(find lvt2calib)/data/camera_info/intrinsic.txt"/>
+  <arg name="image_tp" default="/vmpr_camera_color/image_raw"/>
+  <arg name="cam_info_dir" default="$(find lvt2calib)/data/camera_info/vmpr_camera_intrinsic.txt"/>
   <arg name="isDarkBoard" default="false"/>
   <arg name="ns_" default="rgb"/>
+
+  <arg name="p1x_val" default="406.4"/>
+  <arg name="p1y_val" default="0.0"/>
+  <arg name="p2x_val" default="406.4"/>
+  <arg name="p2y_val" default="203.2"/>
+  <arg name="p3x_val" default="0.0"/>
+  <arg name="p3y_val" default="0.0"/>
+  <arg name="p4x_val" default="0.0"/>
+  <arg name="p4y_val" default="203.2"/>
 
   <include file="$(find lvt2calib)/launch/camera/cam_pattern.launch">
     <arg name="isRGB" value="true"/>
@@ -13,6 +22,15 @@
     <arg name="cam_info_dir" value="$(arg cam_info_dir)"/>
     <arg name="image_tp" value="$(arg image_tp)"/>
     <arg name="ifCompressed" value="$(arg ifCompressed)"/>
+
+    <arg name="p1x_val" default="$(arg p1x_val)"/>
+    <arg name="p1y_val" default="$(arg p1y_val)"/>
+    <arg name="p2x_val" default="$(arg p2x_val)"/>
+    <arg name="p2y_val" default="$(arg p2y_val)"/>
+    <arg name="p3x_val" default="$(arg p3x_val)"/>
+    <arg name="p3y_val" default="$(arg p3y_val)"/>
+    <arg name="p4x_val" default="$(arg p4x_val)"/>
+    <arg name="p4y_val" default="$(arg p4y_val)"/>
   </include>
 
 </launch>

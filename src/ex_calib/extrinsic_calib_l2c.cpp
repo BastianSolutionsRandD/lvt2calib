@@ -11,7 +11,6 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/common/transforms.h>
 #include <pcl/registration/icp.h>
-#include <pcl/visualization/pcl_visualizer.h>
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -20,6 +19,8 @@
 
 #include <lvt2calib/lvt2Calib.h>
 #include <lvt2calib/slamBase.h>
+
+#include <tf2_ros/static_transform_broadcaster.h>
 
 #define DEBUG 0
 
@@ -36,33 +37,156 @@ cv::Mat cameraMatrix = Mat_<double>(3,3);
 
 bool save_calib_file = false, is_multi_exp = false;
 bool is_auto_mode = false;
+std::string image_frame_id, cloud_frame_id;
 vector<pcl::PointXYZ> lv_3d_for_reproj;
 std::vector<cv::Point2f> lv_2d_projected, lv_2d_projected_min2d, lv_2d_projected_min3d,
                         cam_2d_for_reproj;
 int sample_size = 0, sample_num = 0, sample_size_min = 0, sample_size_max = 0;
 ostringstream os_calibfile_log, os_extrinsic_min3d, os_extrinsic_min2d;
 
-bool points_visual_on = false;
-
 list<int> sample_sequence;
 
 lvt2Calib mycalib(L2C_CALIB);
+
+tf2_ros::Buffer tfBuffer;
+
+// double calculateRADerr(double alpha_, double alpha_gt_)
+// {
+//     double delta = alpha_ - alpha_gt_;
+//     double delta_ = (delta > M_PI)?(delta - M_PI * 2.0):((delta < -M_PI)?(delta + M_PI * 2.0):delta);
+
+//     return delta_;
+// }
+
+// std::vector<double> calculateTransErr(std::vector<double> ground_truth_, std::vector<double> detected_)
+// {
+//     double err_tx_ = 0, err_ty_ = 0, err_tz_ = 0, err_total = 0;
+
+//     err_tx_ = sqrt(pow(detected_[0]-ground_truth_[0], 2));
+//     err_ty_ = sqrt(pow(detected_[1]-ground_truth_[1], 2));
+//     err_tz_ = sqrt(pow(detected_[2]-ground_truth_[2], 2));
+//     err_total = sqrt(pow(err_tx_, 2) + pow(err_ty_, 2) + pow(err_tz_, 2));
+
+//     std::vector<double> err = {err_tx_, err_ty_, err_tz_, err_total};
+//     return err;
+// }
+
+// double calculateAngularErr(Eigen::Matrix3f ground_truth_, Eigen::Matrix3f detected_)
+// {
+//     Eigen::Matrix3d m = (detected_.transpose() * ground_truth_).cast<double>();
+//     double TR = m.trace();
+//     double temp = (TR - 1) / 2.0;
+//     double err = acos((temp < -1)?-1:((temp > 1)?1:temp));
+//     return err;
+// }
+
+void tfError(string source_frame1, string target_frame1, string source_frame2, string target_frame2)
+{
+    // Wait for the transformation between source_frame and target_frame to become available
+    geometry_msgs::TransformStamped transformStamped1;
+    geometry_msgs::TransformStamped transformStamped2;
+
+    try 
+    {
+        transformStamped1 = tfBuffer.lookupTransform(target_frame1, source_frame1, ros::Time(0), ros::Duration(1.0));
+        transformStamped2 = tfBuffer.lookupTransform(target_frame2, source_frame2, ros::Time(0), ros::Duration(1.0));
+        
+    } 
+    catch (tf2::TransformException& ex) 
+    {
+        ROS_WARN("%s", ex.what());
+        return;
+    }
+
+    geometry_msgs::Vector3 trans1 = transformStamped1.transform.translation;
+    geometry_msgs::Vector3 trans2 = transformStamped2.transform.translation;
+
+    double mse = std::sqrt(std::pow(trans1.x - trans2.x,2) + std::pow(trans1.y - trans2.y,2) + (std::pow(trans1.z - trans2.z,2)));
+    
+    std::cout << "MSE between " << source_frame1 << " and " << source_frame2 << " is " << mse << "m" << std::endl;
+    
+    geometry_msgs::Quaternion q_tf1 = transformStamped1.transform.rotation;
+    geometry_msgs::Quaternion q_tf2 = transformStamped2.transform.rotation;
+    
+    // Convert tf2::Quaternion to Eigen::Quaternion
+    Eigen::Quaterniond q_eigen1(q_tf1.w, q_tf1.x, q_tf1.y, q_tf1.z);
+    Eigen::Quaterniond q_eigen2(q_tf2.w, q_tf2.x, q_tf2.y, q_tf2.z);
+
+    // Convert Eigen::Quaternion to rotation matrix
+    Eigen::Matrix3d rotation_matrix1 = q_eigen1.normalized().toRotationMatrix();
+    Eigen::Matrix3d rotation_matrix2 = q_eigen2.normalized().toRotationMatrix();
+
+    double TR = (rotation_matrix2.transpose() * rotation_matrix1).trace();
+    double temp = (TR - 1) / 2.0;
+    double trace_err = acos((temp < -1)?-1:((temp > 1)?1:temp));
+    std::cout << "Trace based angular error between " << source_frame1 << " and " << source_frame2 << " is " << trace_err << " degrees" << std::endl;
+}
+
+void publishTf(string base_frame, string child_frame, Eigen::Matrix4d& transform)
+{
+
+    Eigen::Vector3d translation = transform.block<3, 1>(0, 3);
+
+    // Extract rotation matrix
+    Eigen::Matrix3d rotation = transform.block<3, 3>(0, 0);
+
+    // Convert rotation matrix to quaternion
+    Eigen::Quaterniond quaternion(rotation);
+
+    // Create a static transform broadcaster
+    static tf2_ros::StaticTransformBroadcaster static_broadcaster;
+
+    // Create a transform message
+    geometry_msgs::TransformStamped transformStamped;
+    
+    // Set the timestamp and frame IDs
+    transformStamped.header.stamp = ros::Time::now();
+    transformStamped.header.frame_id = base_frame;
+    transformStamped.child_frame_id = child_frame;
+
+    // Set the translation
+    transformStamped.transform.translation.x = translation[0];
+    transformStamped.transform.translation.y = translation[1];
+    transformStamped.transform.translation.z = translation[2];
+    
+    // Set the rotation (quaternion)
+    transformStamped.transform.rotation.x = quaternion.x(); // adjust quaternion x-component
+    transformStamped.transform.rotation.y = quaternion.y(); // adjust quaternion y-component
+    transformStamped.transform.rotation.z = quaternion.z(); // adjust quaternion z-component
+    transformStamped.transform.rotation.w = quaternion.w(); // adjust quaternion w-component (1 for no rotation)
+
+    // Publish the static transform
+    static_broadcaster.sendTransform(transformStamped);
+
+    std::cout << "Broadcasted TF between " << base_frame << " and " << child_frame << std::endl;
+    sleep(1.0);
+}
 
 void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr camera_cloud, std::vector<cv::Point2f> cam_2d_sorted)
 {
     ROS_WARN("********** 2.0 calibration start **********");
     cout << "<<<<< 2.1 calibration via min3D " << endl;
     // min3D Calibration
-    // Eigen:: Matrix4d Tr_l2s_centroid_min3d = mycalib.ExtCalib3D(laser_cloud, camera_cloud);
-    Eigen::Matrix4d Tr_l2s_centroid_min3d = mycalib.ExtCalib3D_ceres(laser_cloud, camera_cloud);
+    Eigen:: Matrix4d Tr_s2l_centroid_min_3d = mycalib.ExtCalib3D(laser_cloud, camera_cloud);
+    Eigen::Matrix4d Tr_l2s_centroid = Tr_s2l_centroid_min_3d.inverse();
+
+    publishTf(image_frame_id, "test_depth", Tr_l2s_centroid);
+    tfError(cloud_frame_id, image_frame_id, "test_depth", image_frame_id);
+    
+    publishTf(cloud_frame_id, "test_camera", Tr_s2l_centroid_min_3d);
+    tfError(image_frame_id, cloud_frame_id, "test_camera", cloud_frame_id);
+
     // Get final transform from velo to camera (using centroid to do calibration)
     Eigen::Matrix4d Tr_s2c_centroid, Tr_l2c_centroid_min3d;
-    Tr_s2c_centroid <<   0, -1, 0, 0,
-    0, 0, -1, 0,
-    1, 0, 0, 0,
-    0, 0, 0, 1;
-    // The final transformation matrix from lidar to camera frame (stereo_camera).
-    Tr_l2c_centroid_min3d = Tr_s2c_centroid * Tr_l2s_centroid_min3d;
+    // Tr_s2c_centroid <<   0, -1, 0, 0,
+    // 0, 0, -1, 0,
+    // 1, 0, 0, 0,
+    // 0, 0, 0, 1;
+    // // The final transformation matrix from lidar to camera frame (stereo_camera).
+    // Tr_l2c_centroid_min3d = Tr_s2c_centroid * Tr_l2s_centroid;
+
+    Tr_l2c_centroid_min3d = Tr_l2s_centroid; // TODO: REMOVE
+
     cout << "Tr_laser_to_cam_centroid_min_3d = " << "\n" << Tr_l2c_centroid_min3d << endl;
 
     std::vector<double> calib_result_6dof_min3d = eigenMatrix2SixDOF(Tr_l2c_centroid_min3d);
@@ -87,7 +211,7 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
     cout << "<<<<< 2.2 calibration via min2D " << endl;
     Eigen::Matrix4d Tr_l2c_centroid_min2d = mycalib.ExtCalib2D(laser_cloud, cam_2d_sorted, Tr_l2c_centroid_min3d);
     cout << "Tr_laser_to_cam_min_2d = " << "\n" << Tr_l2c_centroid_min2d << endl;
-    Eigen::Matrix4d Tr_l2s_centroid_min2d = Tr_s2c_centroid.inverse() * Tr_l2c_centroid_min2d;
+
     // transfer to TF
     std::vector<double> calib_result_6dof_min2d = eigenMatrix2SixDOF(Tr_l2c_centroid_min2d);
     cout << "x, y, z, roll, pitch, yaw = " << endl;
@@ -114,10 +238,8 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
     R_min2d = Tr_l2c_centroid_min2d.block(0,0,3,3);
 
     cout << "<<<<< 3.1 3D Matching Error" << endl;
-    // vector<double> align_err_min3d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2c_centroid_min3d);
-    // vector<double> align_err_min2d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2c_centroid_min2d);
-    vector<double> align_err_min3d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2s_centroid_min3d);
-    vector<double> align_err_min2d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2s_centroid_min2d);
+    vector<double> align_err_min3d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2c_centroid_min3d);
+    vector<double> align_err_min2d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2c_centroid_min2d);
     cout << "min3d [rmse_x, rmse_y, rmse_z, rmse_total] = [";
     for(auto it : align_err_min3d) cout << it << " ";
     cout << "]" << endl;
@@ -128,7 +250,7 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
     cout << "<<<<< 3.1 2D Re-projection Error" << endl;
     // min3d
     cv::Mat Tr_l2c_min3d_cv;
-    eigen2cv(Tr_l2c_centroid_min3d, Tr_l2c_min3d_cv);
+    eigen2cv(Tr_l2c_centroid_min2d, Tr_l2c_min3d_cv);
     lv_2d_projected_min3d.clear();
     projectVelo2Cam(mycalib.s1_cloud, cameraMatrix, Tr_l2c_min3d_cv, lv_2d_projected_min3d);
     
@@ -202,64 +324,6 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
 
         ROS_WARN("<<<<< calibration result saved!!!");
     }
-    
-    if(points_visual_on)
-    {
-        boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer_min3d(new pcl::visualization::PCLVisualizer("3d matching viewer (min3d)"));
-        boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer_min2d(new pcl::visualization::PCLVisualizer("3d matching viewer (min2d)"));
-        boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer_raw(new pcl::visualization::PCLVisualizer("raw viewer"));
-
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr laser_cloud_rgb(new pcl::PointCloud<pcl::PointXYZRGB>), camera_cloud_rgb(new pcl::PointCloud<pcl::PointXYZRGB>), laser_cloud_camera_min3d_rgb(new pcl::PointCloud<pcl::PointXYZRGB>), laser_cloud_camera_min2d_rgb(new pcl::PointCloud<pcl::PointXYZRGB>);
-
-        pcl::copyPointCloud(*mycalib.s1_cloud, *laser_cloud_rgb);
-        pcl::copyPointCloud(*mycalib.s2_cloud, *camera_cloud_rgb);
-        int point_size = laser_cloud_rgb->points.size();
-        int color_gap = 255 / point_size;
-        for (int i = 0; i < point_size; ++i)
-        {
-            // int idx = i % 4;
-            int color_value = (i + 1) * color_gap;
-            // (laser_cloud_rgb->points.begin() + i)->intensity = i;
-            // (camera_cloud_rgb->points.begin() + i)->intensity = i;
-            (laser_cloud_rgb->points.begin() + i)->r = color_value;
-            (camera_cloud_rgb->points.begin() + i)->g = color_value;
-        }
-
-        pcl::transformPointCloud(*laser_cloud_rgb, *laser_cloud_camera_min3d_rgb, Tr_l2s_centroid_min3d);
-        pcl::transformPointCloud(*laser_cloud_rgb, *laser_cloud_camera_min2d_rgb, Tr_l2s_centroid_min2d);
-
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr matching_pc_min3d(new pcl::PointCloud<pcl::PointXYZRGB>), matching_pc_min2d(new pcl::PointCloud<pcl::PointXYZRGB>), raw_pc(new pcl::PointCloud<pcl::PointXYZRGB>);
-        *matching_pc_min3d = *camera_cloud_rgb + *laser_cloud_camera_min3d_rgb;
-        *matching_pc_min2d = *camera_cloud_rgb + *laser_cloud_camera_min2d_rgb;
-        *raw_pc = *camera_cloud_rgb + *laser_cloud_rgb;
-
-        pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb_handler_min3d(matching_pc_min3d);
-        pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb_handler_min2d(matching_pc_min2d);
-        pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb_handler_raw(raw_pc);
-
-        viewer_min3d->setBackgroundColor(255, 255, 255);
-        viewer_min2d->setBackgroundColor(255, 255, 255);
-        viewer_raw->setBackgroundColor(255, 255, 255);
-        viewer_min3d->addPointCloud<pcl::PointXYZRGB>(matching_pc_min3d, rgb_handler_min3d, "matching_pc_min3d");
-        viewer_min2d->addPointCloud<pcl::PointXYZRGB>(matching_pc_min2d, rgb_handler_min2d, "matching_pc_min2d");
-        viewer_raw->addPointCloud<pcl::PointXYZRGB>(raw_pc, rgb_handler_raw, "raw_pc");
-        viewer_min3d->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 8, "matching_pc_min3d");
-        viewer_min2d->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 8, "matching_pc_min2d");
-        viewer_raw->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 8, "raw_pc");
-        viewer_min3d->addCoordinateSystem(1.0);
-        viewer_min2d->addCoordinateSystem(1.0);
-        viewer_raw->addCoordinateSystem(1.0);
-
-        while(!viewer_min3d->wasStopped() && !viewer_min2d->wasStopped() && !viewer_raw->wasStopped() && ros::ok())
-        {
-            viewer_min2d->spinOnce(100);
-            viewer_min3d->spinOnce(100);
-            viewer_raw->spinOnce(100);
-
-            boost::this_thread::sleep(boost::posix_time::microseconds(100000));
-        }
-    }
-
     return;
 }
 
@@ -349,6 +413,9 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "extrinsic_calib_l2c");
     ros::NodeHandle nh_("~");
 
+    // Transform listener
+    tf2_ros::TransformListener tfListener(tfBuffer);
+
     nh_.param<string>("calib_result_dir_", calib_result_dir_, "");
     nh_.param<string>("camera_info_dir_", camera_info_dir_, "");
     nh_.param<string>("features_info_dir_", features_info_dir_, "");
@@ -358,7 +425,8 @@ int main(int argc, char **argv)
     nh_.param("save_calib_file", save_calib_file, false);
     nh_.param("is_multi_exp", is_multi_exp, false);
     nh_.param("is_auto_mode", is_auto_mode, false);
-    nh_.param("points_visual_on", points_visual_on, false);
+    nh_.param<string>("image_frame_id", image_frame_id, "");
+    nh_.param<string>("cloud_frame_id", cloud_frame_id, "");
     ref_ns = ns_l + "_to_" + ns_c;
     ostringstream os_in;
     os_in << features_info_dir_;
@@ -389,8 +457,6 @@ int main(int argc, char **argv)
         ParameterReader pr_cam_intrinsic(oss_CamIntrinsic.str()); // ParameterReader is a class defined in "slamBase.h"
         cameraMatrix = pr_cam_intrinsic.ReadMatFromTxt(pr_cam_intrinsic.getData("K"),3,3);
         cv::cv2eigen(cameraMatrix, mycalib.cameraMatrix_);
-        cout << "cameraMatrix: \n"
-             << cameraMatrix << endl;
 
         fileHandle();
         // <<<<<<<<<<<<<<<<<< random sample to do the calirbation

@@ -2,7 +2,7 @@
 #define lvt2Calib_H
 
 #define PCL_NO_RECOMPILE
-#define DEBUG 0
+
 
 #include <vector>
 #include <string>
@@ -42,7 +42,8 @@
 
 #include "excalib_min2d.h"
 #include "lvt2_utlis.h"
-#include "excalib_min3d_ceres.h"
+
+#define DEBUG 0
 
 using namespace std;
 using namespace cv;
@@ -135,9 +136,8 @@ class lvt2Calib
 
     
     bool loadCSV(const char* filename);
-    Eigen::Matrix4d ExtCalib3D(pcl::PointCloud<pcl::PointXYZ>::Ptr source_cloud_, pcl::PointCloud<pcl::PointXYZ>::Ptr target_cloud_);
+    Eigen::Matrix4d ExtCalib3D(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr camera_cloud);
     Eigen::Matrix4d ExtCalib2D(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, std::vector<cv::Point2f> cam_2d_sorted, Eigen::Matrix4d init_ext);
-    Eigen::Matrix4d ExtCalib3D_ceres(pcl::PointCloud<pcl::PointXYZ>::Ptr source_cloud_, pcl::PointCloud<pcl::PointXYZ>::Ptr target_cloud_);
     std::vector<double> calAlignError(pcl::PointCloud<pcl::PointXYZ>::Ptr laser1_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr laser2_cloud, Eigen::Matrix4d Tr_l1tol2);
     Eigen::Matrix4f obtainGT_GAZEBO();
     void randSample(int sample_size);
@@ -246,29 +246,29 @@ bool lvt2Calib::loadCSV(const char* filename)
     return true;
 }
 
-Eigen::Matrix4d lvt2Calib::ExtCalib3D(pcl::PointCloud<pcl::PointXYZ>::Ptr source_cloud_, pcl::PointCloud<pcl::PointXYZ>::Ptr target_cloud_)
+Eigen::Matrix4d lvt2Calib::ExtCalib3D(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr camera_cloud)
 {
-    int size_p = target_cloud_->points.size();
-    VectorXd p_target(size_p * 3);
-    VectorXd p_source(size_p * 3);
+    int size_p = laser_cloud->points.size();
+    VectorXd p_laser(size_p * 3);
+    VectorXd p_cam(size_p * 3);
     for(int i = 0; i < size_p; i ++)
     {
-        p_target[3*i] = target_cloud_->points[i].x;
-        p_target[3*i+1] = target_cloud_->points[i].y;
-        p_target[3*i+2] = target_cloud_->points[i].z;
+        p_laser[3*i] = laser_cloud->points[i].x;
+        p_laser[3*i+1] = laser_cloud->points[i].y;
+        p_laser[3*i+2] = laser_cloud->points[i].z;
 
-        p_source[3*i] = source_cloud_->points[i].x;
-        p_source[3*i+1] = source_cloud_->points[i].y;
-        p_source[3*i+2] = source_cloud_->points[i].z;
+        p_cam[3*i] = camera_cloud->points[i].x;
+        p_cam[3*i+1] = camera_cloud->points[i].y;
+        p_cam[3*i+2] = camera_cloud->points[i].z;
     }
     if(DEBUG)
     {
-        cout << "p_target.size = " << p_target.size() << endl;
-        cout << "p_source.size = " << p_source.size() << endl;
+        cout << "p_laser.size = " << p_laser.size() << endl;
+        cout << "p_cam.size = " << p_cam.size() << endl;
     }
 
 
-    VectorXd diff = p_target - p_source;
+    VectorXd diff = p_laser - p_cam;
     // cout << "diff.size = " << diff.size() << endl;
 
     Eigen::MatrixXd matrix_transl(3,3);
@@ -302,12 +302,12 @@ Eigen::Matrix4d lvt2Calib::ExtCalib3D(pcl::PointCloud<pcl::PointXYZ>::Ptr source
     if(DEBUG) cout << Tm << endl;
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr translated_pc (new pcl::PointCloud<pcl::PointXYZ> ());
-    pcl::transformPointCloud(*source_cloud_, *translated_pc, Tm);
+    pcl::transformPointCloud(*camera_cloud, *translated_pc, Tm);
 
     //  累积圆心点云ICP
     pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
     icp.setInputSource(translated_pc);
-    icp.setInputTarget(target_cloud_);
+    icp.setInputTarget(laser_cloud);
     pcl::PointCloud<pcl::PointXYZ> Final;
     icp.align(Final);
     icp.setMaxCorrespondenceDistance(0.2);
@@ -404,57 +404,6 @@ Eigen::Matrix4d lvt2Calib::ExtCalib2D(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_
                     rot(2,0), rot(2,1), rot(2,2), m_t[2],
                     0, 0, 0, 1;
     return temp_tr_v2c_2d;
-}
-
-Eigen::Matrix4d lvt2Calib::ExtCalib3D_ceres(pcl::PointCloud<pcl::PointXYZ>::Ptr source_cloud_, pcl::PointCloud<pcl::PointXYZ>::Ptr target_cloud_)
-{
-    Eigen::Matrix3d R = Eigen::Matrix3d::Identity();
-    Eigen::Quaterniond q(R);
-    double ext[7];
-    ext[0] = q.x();
-    ext[1] = q.y();
-    ext[2] = q.z();
-    ext[3] = q.w();
-    ext[4] = 0;  
-    ext[5] = 0;  
-    ext[6] = 0;
-
-    Eigen::Map<Eigen::Quaterniond> m_q = Eigen::Map<Eigen::Quaterniond>(ext);
-    Eigen::Map<Eigen::Vector3d> m_t = Eigen::Map<Eigen::Vector3d>(ext + 4);
-
-    ceres::LocalParameterization * q_parameterization = new ceres::EigenQuaternionParameterization();
-    ceres::Problem problem;
-
-    problem.AddParameterBlock(ext, 4, q_parameterization);
-    problem.AddParameterBlock(ext + 4, 3);
-    int size_p = source_cloud_->points.size();
-    for (int val = 0; val < size_p; val++)
-    {
-        ceres::CostFunction *cost_function;
-        cost_function = excalib_min3d_ceres::Create(target_cloud_->points[val], source_cloud_->points[val]);
-        problem.AddResidualBlock(cost_function, NULL, ext, ext + 4);
-    }
-
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
-    options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-    if(DEBUG) cout << summary.BriefReport() << endl;
-
-    Eigen::Matrix3d rot = m_q.toRotationMatrix();
-    if(DEBUG)
-    {
-        cout << "rot = " << "\n" << rot << endl;
-        cout << "m_t = " << "\n" << m_t << endl;
-    }
-    
-    Eigen::Matrix4d temp_tr_l2c_3d;
-    temp_tr_l2c_3d << rot(0,0), rot(0,1), rot(0,2), m_t[0],
-                    rot(1,0), rot(1,1), rot(1,2), m_t[1],
-                    rot(2,0), rot(2,1), rot(2,2), m_t[2],
-                    0, 0, 0, 1;
-    return temp_tr_l2c_3d;
 }
 
 std::vector<double> lvt2Calib::calAlignError(pcl::PointCloud<pcl::PointXYZ>::Ptr laser1_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr laser2_cloud, Eigen::Matrix4d Tr_l1tol2)

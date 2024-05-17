@@ -52,6 +52,12 @@ int threshold_value_ = 100;
 double blob_minCircularity_ = 0.8, blob_minInertiaRatio_ = 0.1, blob_minArea_ = 50;
 
 double  centroid_dis_min_ = 0.15, centroid_dis_max_ = 0.25, center_dis_min_ = 0.25, center_dis_max_= 0.35;
+
+double p1x_ = 300.0, p1y_ = 0.0;
+double p2x_ = 300.0, p2y_ = 300.0;
+double p3x_ = 0.0, p3y_ = 0.0;
+double p4x_ = 0.0, p4y_ = 300.0;
+
 int min_centers_found_ = 4;
 
 bool is_gazebo = false;
@@ -68,62 +74,103 @@ void load_params()
 {
     if (ros::param::get("~image_tp", image_tp_))
     {
-        ROS_INFO("Retrived param 'image_tp': %s", image_tp_.c_str()); // color
+        ROS_INFO("Retrieved param 'image_tp': %s", image_tp_.c_str()); // color
     }
 
     if(ros::param::get("~ns_", ns_str))
     {
-        ROS_INFO("Retrived param 'ns_': %s", ns_str.c_str());
+        ROS_INFO("Retrieved param 'ns_': %s", ns_str.c_str());
     }
 
     if(ros::param::get("~is_rgb", is_rgb))
     {
-        ROS_INFO("Retrived param 'is_rgb': %d", is_rgb);
+        ROS_INFO("Retrieved param 'is_rgb': %d", is_rgb);
     }
 
     if(ros::param::get("~is_gazebo", is_gazebo))
     {
-        ROS_INFO("Retrived param 'is_gazebo': %d", is_gazebo);
+        ROS_INFO("Retrieved param 'is_gazebo': %d", is_gazebo);
     }
 
     if(ros::param::get("~use_darkboard", use_darkboard))
     {
-        ROS_INFO("Retrived param 'use_darkboard': %d", use_darkboard);
+        ROS_INFO("Retrieved param 'use_darkboard': %d", use_darkboard);
     }
 
     if(ros::param::get("~use_morph", use_morph))
     {
-        ROS_INFO("Retrived param 'use_morph': %d", use_morph);
+        ROS_INFO("Retrieved param 'use_morph': %d", use_morph);
     }
 
     if(ros::param::get("~min_centers_found", min_centers_found_))
     {
-        ROS_INFO("Retrived param 'min_centers_found': %d", min_centers_found_);
+        ROS_INFO("Retrieved param 'min_centers_found': %d", min_centers_found_);
     }
 
     if(ros::param::get("~centroid_dis_min", centroid_dis_min_))
     {
-        ROS_INFO("Retrived param 'centroid_dis_min': %f", centroid_dis_min_);
+        ROS_INFO("Retrieved param 'centroid_dis_min': %f", centroid_dis_min_);
     }
     
     if(ros::param::get("~centroid_dis_max", centroid_dis_max_))
     {
-        ROS_INFO("Retrived param 'centroid_dis_max': %f", centroid_dis_max_);
+        ROS_INFO("Retrieved param 'centroid_dis_max': %f", centroid_dis_max_);
     }
     
     if(ros::param::get("~center_dis_min", center_dis_min_))
     {
-        ROS_INFO("Retrived param 'center_dis_min': %f", center_dis_min_);
+        ROS_INFO("Retrieved param 'center_dis_min': %f", center_dis_min_);
     }
 
     if(ros::param::get("~center_dis_max", center_dis_max_))
     {
-        ROS_INFO("Retrived param 'center_dis_max': %f", center_dis_max_);
+        ROS_INFO("Retrieved param 'center_dis_max': %f", center_dis_max_);
     }
     
+    if(ros::param::get("~p1x_val", p1x_))
+    {
+        ROS_INFO("Retrieved param 'p1x_val': %f", p1x_);
+    }
+
+    if(ros::param::get("~p1y_val", p1y_))
+    {
+        ROS_INFO("Retrieved param 'p1y_val': %f", p1y_);
+    }
+
+    if(ros::param::get("~p2x_val", p2x_))
+    {
+        ROS_INFO("Retrieved param 'p2x_val': %f", p2x_);
+    }
+    
+    if(ros::param::get("~p2y_val", p2y_))
+    {
+        ROS_INFO("Retrieved param 'p2y_val': %f", p2y_);
+    }
+
+    if(ros::param::get("~p3x_val", p3x_))
+    {
+        ROS_INFO("Retrieved param 'p3x_val': %f", p3x_);
+    }
+    
+    if(ros::param::get("~p3y_val", p3y_))
+    {
+        ROS_INFO("Retrieved param 'p3y_val': %f", p3y_);
+    }
+
+    if(ros::param::get("~p4x_val", p4x_))
+    {
+        ROS_INFO("Retrieved param 'p4x_val': %f", p4x_);
+    }
+    
+    if(ros::param::get("~p4y_val", p4y_))
+    {
+        ROS_INFO("Retrieved param 'p4y_val': %f", p4y_);
+    }
+
+
     if(ros::param::get("~camera_info_dir", camera_info_dir_))
     {
-        ROS_INFO("Retrived param 'camera_info_dir_': %s", camera_info_dir_.c_str());
+        ROS_INFO("Retrieved param 'camera_info_dir_': %s", camera_info_dir_.c_str());
         std::ostringstream oss_CamIntrinsic;
         oss_CamIntrinsic << camera_info_dir_;
         ParameterReader pr_cam_intrinsic(oss_CamIntrinsic.str()); // ParameterReader is a class defined in "slamBase.h"
@@ -245,12 +292,11 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
     namedWindow(win_raw_img);
     cv::imshow(win_raw_img, original_image);
     namedWindow(win_undist_img);
-
-    cv::Mat image_copy;
-    image_copy = undistorted_image.clone();
     cv::imshow(win_undist_img, undistorted_image);
     cv::waitKey(1);
-
+    cv::Mat image_copy;
+    image_copy = undistorted_image.clone();
+    
     cv::Size boardSize;
     boardSize.height = 2;
     boardSize.width = 2;
@@ -307,10 +353,9 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
     
         // Set up detector with params
         Ptr<SimpleBlobDetector> detector = SimpleBlobDetector::create(params);
-        found = findCirclesGrid(image_copy, boardSize, pointbuf, CALIB_CB_SYMMETRIC_GRID + CALIB_CB_CLUSTERING, detector);
+        found = findCirclesGrid(image_copy, boardSize, pointbuf, CALIB_CB_SYMMETRIC_GRID+CALIB_CB_CLUSTERING, detector);
 
-
-#endif
+    #endif
 
     if(found) 
     {
@@ -334,10 +379,11 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
         
         // world coordinate
         std::vector<cv::Point2f> xw;
-        xw.push_back(Point2f(300.0f,0.0f));
-        xw.push_back(Point2f(300.0f,300.0f));
-        xw.push_back(Point2f(0.0f,0.0f));
-        xw.push_back(Point2f(0.0f,300.0f));
+
+        xw.push_back(Point2f(static_cast<float>(p1x_), static_cast<float>(p1y_))); // (300.0f,0.0f)
+        xw.push_back(Point2f(static_cast<float>(p2x_), static_cast<float>(p2y_))); // (300.0f,300.0f)
+        xw.push_back(Point2f(static_cast<float>(p3x_), static_cast<float>(p3y_))); // (0.0f,0.0f)
+        xw.push_back(Point2f(static_cast<float>(p4x_), static_cast<float>(p4y_))); // (0.0f,300.0f)W
 
         // Initialize translation and rotation matrix
         cv::Mat otw = Mat::zeros(3, 1, CV_64F); // Translation vector
@@ -363,10 +409,10 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
 
         // Four centers in world frame
         std::vector<cv::Point3d> wX ;
-        wX.push_back( cv::Point3d(  0, 0, 0) ); // wX_0 (-L, -L, 0)^T
-        wX.push_back( cv::Point3d(  300, 0, 0) ); // wX_1 ( L, -L, 0)^T
-        wX.push_back( cv::Point3d(  0, 300, 0) ); // wX_2 ( L,  L, 0)^T
-        wX.push_back( cv::Point3d(  300, 300, 0) ); // wX_3 (-L,  L, 0)^T
+        wX.push_back( cv::Point3d(p3x_,p3y_, 0) ); // wX_0 (-L, -L, 0)^T // 0, 0, 0
+        wX.push_back( cv::Point3d(p4x_,p4y_, 0) ); // wX_1 ( L, -L, 0)^T // 300, 0, 0
+        wX.push_back( cv::Point3d(p1x_,p1y_, 0) ); // wX_2 ( L,  L, 0)^T // 0, 300, 0
+        wX.push_back( cv::Point3d(p2x_,p2y_, 0) ); // wX_3 (-L,  L, 0)^T // 300, 300, 0
  
         std::vector<cv::Point3d> points_3d;
         for(int i = 0; i < wX.size(); i++) 
@@ -601,10 +647,6 @@ int main(int argc, char* argv[])
         {
             ROS_WARN("<<<<<<<<<<<< [%s] PAUSE <<<<<<<<<<<<", ns_str.c_str());
             cumulative_cloud -> clear();
-            cluster_centroids_pub.shutdown();
-            cluster_centroids_pub = nh.advertise<lvt2calib::ClusterCentroids>("centers_cloud", 1);
-            cam_2d_circle_centers_pub.shutdown();
-            cam_2d_circle_centers_pub = nh.advertise<lvt2calib::Cam2DCircleCenters>("cam_2d_circle_center", 1);
             ros::param::set("/cam_paused", true);
             while(pause_process && !end_process && ros::ok())
             {

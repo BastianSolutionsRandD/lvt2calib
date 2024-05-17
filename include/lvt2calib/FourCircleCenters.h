@@ -35,7 +35,7 @@ using namespace Eigen;
 class FourCircleCenters
 {
     private:
-        double circle_seg_thre_ = 0.02, circle_radius_ = 0.12, centroid_dis_min_ = 0.15, centroid_dis_max_ = 0.25; 
+        double circle_seg_thre_ = 0.02, circle_radius_ = 0.12, centroid_dis_min_ = 0.15, centroid_dis_max_ = 0.45, min_inter_center_dist_ = 0.15; 
         int min_centers_found_ = 4; 
 
     public:
@@ -54,6 +54,10 @@ class FourCircleCenters
         {
             centroid_dis_min_ = min;
             centroid_dis_max_ = max;
+        }
+        void setMinInterCenterDis(double min)
+        {
+            min_inter_center_dist_ = min;
         }
         void setMinNumCentersFound(int num)
         {
@@ -80,8 +84,8 @@ bool FourCircleCenters::FindFourCenters(pcl::PointCloud<pcl::PointXYZI>::Ptr &ca
     circle_segmentation.setMaxIterations(1000);
     circle_segmentation.setRadiusLimits(circle_radius_ - circle_seg_thre_, circle_radius_ + circle_seg_thre_);
 
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr four_cneters_registed(new pcl::PointCloud<pcl::PointXYZRGB>);
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr four_cneters_back(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr four_centers_registered(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr four_centers_back(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr copy_cloud(new pcl::PointCloud<pcl::PointXYZI>); // Used for removing inliers
     pcl::copyPointCloud<pcl::PointXYZI>(*calib_boundary_, *copy_cloud);
     pcl::PointCloud<pcl::PointXYZI>::Ptr circle_cloud(new pcl::PointCloud<pcl::PointXYZI>); // To store circle points
@@ -160,8 +164,10 @@ bool FourCircleCenters::FindFourCenters(pcl::PointCloud<pcl::PointXYZI>::Ptr &ca
             {
                 float dis = sqrt(pow(fabs((*it)[0]-center.x),2) + pow(fabs((*it)[1]-center.y),2));
                 if(DEBUG) ROS_INFO("%f", dis);
-                if (dis < 0.25){
+                if (dis < min_inter_center_dist_)
+                {
                     valid = false;
+                    if(DEBUG) ROS_INFO("Invalid centroid due to distance between centers less than min_distance");
                     break;
                 }
             }
@@ -177,6 +183,7 @@ bool FourCircleCenters::FindFourCenters(pcl::PointCloud<pcl::PointXYZI>::Ptr &ca
                 if(distance_to_cluster<circle_radius_+0.02){
                 centroid_cloud_inliers.erase(pt);
                 --pt; // To avoid out of range
+                if(DEBUG) ROS_INFO("Popping wrong circle centroid");
                 }
             }
         }
@@ -237,14 +244,14 @@ bool FourCircleCenters::FindFourCenters(pcl::PointCloud<pcl::PointXYZI>::Ptr &ca
                 default:
                     break;
                 }
-                four_cneters_registed->points.push_back(center_rgb);
+                four_centers_registered->points.push_back(center_rgb);
             }
             pcl::PointXYZI center_rotated_back = pcl::transformPoint(center, translation);
             // center_rotated_back.x = (- coefficients->values[1] * center_rotated_back.y - coefficients->values[2] * center_rotated_back.z - coefficients->values[3])/coefficients->values[0];
             // cumulative_cloud->push_back(center_rotated_back);
             circle_center_cloud_->push_back(center_rotated_back);
         }
-        if(DEBUG) pcl::transformPointCloud(*four_cneters_registed, *four_cneters_back, translation);
+        if(DEBUG) pcl::transformPointCloud(*four_centers_registered, *four_centers_back, translation);
         
 
         if(DEBUG) 
@@ -297,8 +304,8 @@ bool FourCircleCenters::FindFourCenters(pcl::PointCloud<pcl::PointXYZI>::Ptr &ca
     circle_segmentation.setMaxIterations(1000);
     circle_segmentation.setRadiusLimits(circle_radius_ - circle_seg_thre_, circle_radius_ + circle_seg_thre_);
 
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr four_cneters_registed(new pcl::PointCloud<pcl::PointXYZRGB>);
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr four_cneters_back(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr four_centers_registered(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr four_centers_back(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZI>::Ptr copy_cloud(new pcl::PointCloud<pcl::PointXYZI>); // Used for removing inliers
     pcl::copyPointCloud<pcl::PointXYZI>(*calib_boundary_, *copy_cloud);
     pcl::PointCloud<pcl::PointXYZI>::Ptr circle_cloud(new pcl::PointCloud<pcl::PointXYZI>); // To store circle points
@@ -456,14 +463,14 @@ bool FourCircleCenters::FindFourCenters(pcl::PointCloud<pcl::PointXYZI>::Ptr &ca
                 default:
                     break;
                 }
-                four_cneters_registed->points.push_back(center_rgb);
+                four_centers_registered->points.push_back(center_rgb);
             }
             // pcl::PointXYZI center_rotated_back = pcl::transformPoint(center, translation);
             // center_rotated_back.x = (- coefficients->values[1] * center_rotated_back.y - coefficients->values[2] * center_rotated_back.z - coefficients->values[3])/coefficients->values[0];
             // cumulative_cloud->push_back(center_rotated_back);
             circle_center_cloud_->push_back(center);
         }
-        // if(DEBUG) pcl::transformPointCloud(*four_cneters_registed, *four_cneters_back, translation);
+        // if(DEBUG) pcl::transformPointCloud(*four_centers_registered, *four_centers_back, translation);
         
 
         cout << "Four circle centers:" << endl;

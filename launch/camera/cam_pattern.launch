@@ -9,14 +9,23 @@
   <arg name="cam_info_dir" default="$(find lvt2calib)/data/camera_info/intrinsic.txt"/>
   <arg name="ns_" default="camera"/>
 
+  <arg name="p1x_val" default="300.0"/>
+  <arg name="p1y_val" default="0.0"/>
+  <arg name="p2x_val" default="300.0"/>
+  <arg name="p2y_val" default="300.0"/>
+  <arg name="p3x_val" default="0.0"/>
+  <arg name="p3y_val" default="0.0"/>
+  <arg name="p4x_val" default="0.0"/>
+  <arg name="p4y_val" default="300.0"/>
+
   <!-- camera type -->
   <!-- false: thermal   
       ture: rgb -->
   <arg name="isRGB" default="false"/>
 
   <!-- board type -->
-  <!-- false: light borad with dark hole
-        true: dark borad with light hole -->
+  <!-- false: light board with dark hole
+        true: dark board with light hole -->
   <arg name="isDarkBoard" default="false"/>
 
   <group ns="$(arg ns_)">
@@ -38,6 +47,30 @@
       <param name="centroid_dis_max" type="double" value="0.25"/>
       <param name="center_dis_min" type="double" value="0.1"/>
       <param name="center_dis_max" type="double" value="0.48"/>
+
+      <param name="p1x_val" type="double" value="$(arg p1x_val)"/>
+      <param name="p1y_val" type="double" value="$(arg p1y_val)"/>
+
+      <param name="p2x_val" type="double" value="$(arg p2x_val)"/>
+      <param name="p2y_val" type="double" value="$(arg p2y_val)"/>
+
+      <param name="p3x_val" type="double" value="$(arg p3x_val)"/>
+      <param name="p3y_val" type="double" value="$(arg p3y_val)"/>
+
+      <param name="p4x_val" type="double" value="$(arg p4x_val)"/>
+      <param name="p4y_val" type="double" value="$(arg p4y_val)"/>      
+
+      <!-- <param name="p1x_val" type="double" value="300.0"/>
+      <param name="p1y_val" type="double" value="0.0"/>
+
+      <param name="p2x_val" type="double" value="300.0"/>
+      <param name="p2y_val" type="double" value="300.0"/>
+
+      <param name="p3x_val" type="double" value="0.0"/>
+      <param name="p3y_val" type="double" value="0.0"/>
+
+      <param name="p4x_val" type="double" value="0.0"/>
+      <param name="p4y_val" type="double" value="300.0"/>   -->
 
       <rosparam>
         minCircularity: 0.8

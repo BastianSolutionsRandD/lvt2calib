@@ -41,8 +41,8 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser1_cloud, pcl::PointCloud<
     ROS_WARN("********** 2.0 calibration start **********");
     cout << "<<<<< calibration via min3D " << endl;
     // min3D Calibration
-    // Eigen::Matrix4d Tr_L1toL2_centroid_min3d = mycalib.ExtCalib3D(laser1_cloud, laser2_cloud); 
-    Eigen::Matrix4d Tr_L1toL2_centroid_min3d = mycalib.ExtCalib3D_ceres(laser1_cloud, laser2_cloud); 
+    Eigen:: Matrix4d Tr_L2toL1_centroid_min_3d = mycalib.ExtCalib3D(laser1_cloud, laser2_cloud);
+    Eigen::Matrix4d Tr_L1toL2_centroid_min3d = Tr_L2toL1_centroid_min_3d.inverse(); 
     cout << "Tr_L1_to_L2_centroid_min_3d = " << "\n" << Tr_L1toL2_centroid_min3d << endl;
 
     // transfer to TF

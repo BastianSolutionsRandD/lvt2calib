@@ -198,9 +198,9 @@ class AutoDetectLaser: public EstimateBoundary<PointType_>
         CloudType_::Ptr IntensityFilter(CloudType_::Ptr& cloud_in, float rm_range_min, float rm_range_max);
 
         #ifdef STATIC_ANALYSE
-        void visualize_regist(CloudType_::Ptr& source, CloudType_::Ptr& target, CloudType_::Ptr& registed, Eigen::Vector4f& C_source_, Eigen::Vector4f& C_target_, Eigen::Matrix3f& U_source_, Eigen::Matrix3f& U_target_);
-        void visualize_regist(pcl::PointCloud<pcl::PointXYZI>::Ptr& target, pcl::PointCloud<pcl::PointXYZI>::Ptr& registed, Eigen::Vector4f& C_target_, Eigen::Matrix3f& U_target_, double sigma1, double sigma2, size_t dot_size = 1, string viewer_title = "Registration Result");
-        void visualize_regist(pcl::PointCloud<pcl::PointXYZI>::Ptr& target, pcl::PointCloud<pcl::PointXYZI>::Ptr& registed, Eigen::Vector4f& C_target_, Eigen::Matrix3f& U_target_, size_t dot_size = 1, string viewer_title = "Registration Result");
+        void visualize_regist(CloudType_::Ptr& source, CloudType_::Ptr& target, CloudType_::Ptr& registed);
+        void visualize_regist(pcl::PointCloud<pcl::PointXYZI>::Ptr& target, pcl::PointCloud<pcl::PointXYZI>::Ptr& registed, double sigma1, double sigma2, size_t dot_size = 1, string viewer_title = "Registration Result");
+        void visualize_regist(pcl::PointCloud<pcl::PointXYZI>::Ptr& target, pcl::PointCloud<pcl::PointXYZI>::Ptr& registed, size_t dot_size = 1, string viewer_title = "Registration Result");
         void visualEigenvalues(Eigen::Vector4f& pcaCentroid, Eigen::Matrix3f& eigenVectors_, pcl::visualization::PCLVisualizer& viewer, const int viewpoint = 0, string arrow_name = "arrow");
         void showPointXYZI(pcl::PointCloud<pcl::PointXYZI>::Ptr& cloud, size_t dot_size, string viewer_title);
         #endif
@@ -227,7 +227,7 @@ bool AutoDetectLaser::detectCalibBoard(CloudType_::Ptr &cloud_in,
     pass_x.setFilterFieldName("x");
     pass_x.setFilterLimits(remove_x_min_, remove_x_max_);
     pass_x.setInputCloud(cloud_in);
-    pass_x.setNegative (true);
+    pass_x.setNegative (false);
     pass_x.filter(*x_filtered);
     pcl::copyPointCloud(*x_filtered, *x_filtered_);
 
@@ -281,7 +281,12 @@ bool AutoDetectLaser::detectCalibBoard(CloudType_::Ptr &cloud_in,
             cout << "PointCloud size after filter: " << cloud2->points.size() << endl;
     }
     else
+    {
+        //pcl::copyPointCloud(*cloud_in, *cloud2);
         pcl::copyPointCloud(*x_filtered, *cloud2);
+        std::cout << "Input " << cloud_in->points.size() << std::endl;
+        std::cout << "After x filtering " << x_filtered->points.size() << std::endl;
+    }
     // if(auto_mode_) showPointXYZI(cloud2, 1, "pointcloud after voxel");
     pcl::copyPointCloud(*cloud2, *ds_filtered_);
 
@@ -313,15 +318,6 @@ bool AutoDetectLaser::detectCalibBoard(CloudType_::Ptr &cloud_in,
         pcl::copyPointCloud(*cloud_gauss_filtered, *gs_filtered_);
     }
 
-    // ************************* 5.1 intensity filter ***************************
-    if(use_i_filter_)
-    {
-        cloud2 = IntensityFilter(cloud2, i_filter_out_min_, i_filter_out_max_);
-        #ifdef STATIC_ANALYSE
-        showPointXYZI(filtered_plane, 2, "Intensity Filter Result");
-        #endif 
-    }
-
     // ************************ 4.Euclidean Cluster ******************************
     pcl::search::KdTree<PointType_>::Ptr tree(new pcl::search::KdTree<PointType_>);
     tree->setInputCloud(cloud2);
@@ -348,6 +344,7 @@ bool AutoDetectLaser::detectCalibBoard(CloudType_::Ptr &cloud_in,
 
     pcl::ExtractIndices<PointType_> extract_plane;
     int seg_num = 0, pos_num = 0, true_pos_num = 0;
+
     if(DEBUG1) cout << cluster_indices.size() << " clusters found from "  << cloud2->points.size() << " points in cloud" << endl;
     
     for(auto it = cluster_indices.begin(); it < cluster_indices.end(); it++)
@@ -362,7 +359,7 @@ bool AutoDetectLaser::detectCalibBoard(CloudType_::Ptr &cloud_in,
         cloud_cluster->height = 1;
         cloud_cluster->is_dense = true;
 
-        if(DEBUG1) ROS_WARN("PointCloud represneting the Cluster: %d data points.", cloud_cluster->points.size());
+        if(DEBUG1) ROS_WARN("PointCloud representing the Cluster: %d data points.", cloud_cluster->points.size());
         // if(auto_mode_) showPointXYZI(cloud_cluster, 1, "cloud cluster");
         #ifdef STATIC_ANALYSE
         showPointXYZI(cloud_cluster, 2, "cluster cloud");
@@ -428,16 +425,16 @@ bool AutoDetectLaser::detectCalibBoard(CloudType_::Ptr &cloud_in,
             showPointXYZI(plane_cloud, 2, "Unknown Plane");
             #endif 
             // ************************* 5.1 intensity filter ***************************
-            // CloudType_::Ptr filtered_plane (new CloudType_);
-            // if(use_i_filter_)
-            // {
-            //     filtered_plane = IntensityFilter(plane_cloud, i_filter_out_min_, i_filter_out_max_);
-            //     #ifdef STATIC_ANALYSE
-            //     showPointXYZI(filtered_plane, 2, "Intensity Filter Result");
-            //     #endif 
-            // }
-            // else
-            //     pcl::copyPointCloud(*plane_cloud, *filtered_plane);
+            CloudType_::Ptr filtered_plane (new CloudType_);
+            if(use_i_filter_)
+            {
+                filtered_plane = IntensityFilter(plane_cloud, i_filter_out_min_, i_filter_out_max_);
+                #ifdef STATIC_ANALYSE
+                showPointXYZI(filtered_plane, 2, "Intensity Filter Result");
+                #endif 
+            }
+            else
+                pcl::copyPointCloud(*plane_cloud, *filtered_plane);
 
             // ************************* 5.2 coloring for visiualization ***************************
             pcl::PointCloud<pcl::PointXYZI>::Ptr colored_i_plane(new pcl::PointCloud<pcl::PointXYZI>);
@@ -454,20 +451,18 @@ bool AutoDetectLaser::detectCalibBoard(CloudType_::Ptr &cloud_in,
             double check_time_ = 0.0;
             pcl::console::TicToc t_check;
             t_check.tic();
-            // is_detected_calib = isCalibBoard(filtered_plane, boundary, boundary_registed);
-            is_detected_calib = isCalibBoard(plane_cloud, boundary, boundary_registed);
+            is_detected_calib = isCalibBoard(filtered_plane, boundary, boundary_registed);
             check_time_ = t_check.toc();
             // check_time_v.push_back(check_time_);
             if(is_detected_calib)
             {
-                if(DEBUG1) ROS_WARN("<<<<<<<<<<<<< [LASER] Have found the calib borad point cloud!!!");
+                if(DEBUG1) ROS_WARN("<<<<<<<<<<<<< [LASER] Have found the calib board point cloud!!!");
                 detectable = true;
                 pos_num ++;
                 Tr_calib2tpl_ = Tr_ukn2tpl_;
-                // *detected_boards += *filtered_plane;
-                // pcl::copyPointCloud(*filtered_plane, *calib_board);
-                *detected_boards += *plane_cloud;
-                pcl::copyPointCloud(*plane_cloud, *calib_board);
+                *detected_boards += *filtered_plane;
+                // if(DEBUG1) showPointXYZI(detected_boards,2, "positive boards");
+                pcl::copyPointCloud(*filtered_plane, *calib_board);
                 pcl::copyPointCloud(*boundary_registed, *calib_board_boundary_registed_);
                 pcl::copyPointCloud(*boundary, *calib_board_boundary_);
             }
@@ -482,7 +477,7 @@ bool AutoDetectLaser::detectCalibBoard(CloudType_::Ptr &cloud_in,
     showPointXYZI(colored_i_planes_, 2, "Plane Segmentation Result");
     #endif
     // if(!detectable)
-    //     ROS_WARN("<<<<<<<<<<<<< [LASER] CANNOT find the calib borad!");
+    //     ROS_WARN("<<<<<<<<<<<<< [LASER] CANNOT find the calib board!");
     pcl::copyPointCloud(*detected_boards, *calib_board);
     return detectable;
 }
@@ -677,7 +672,7 @@ bool AutoDetectLaser::detectCalibBoardRG(CloudType_::Ptr &cloud_in,
         // check_time_v.push_back(check_time_);
         if(is_detected_calib)
         {
-            if(DEBUG1) ROS_WARN("<<<<<<<<<<<<< [LASER] Have found the calib borad point cloud!!!");
+            if(DEBUG1) ROS_WARN("<<<<<<<<<<<<< [LASER] Have found the calib board point cloud!!!");
             detectable = true;
             pos_num ++;
             Tr_calib2tpl_ = Tr_ukn2tpl_;
@@ -691,7 +686,7 @@ bool AutoDetectLaser::detectCalibBoardRG(CloudType_::Ptr &cloud_in,
         // if(DEBUG1) ROS_INFO("Remianing %d points in cloud", cloud_cluster->points.size());
     }
     // if(!detectable)
-    //     ROS_WARN("<<<<<<<<<<<<< [LASER] CANNOT find the calib borad!");
+    //     ROS_WARN("<<<<<<<<<<<<< [LASER] CANNOT find the calib board!");
     pcl::copyPointCloud(*detected_boards, *calib_board);
     return detectable;
 }
@@ -846,8 +841,8 @@ bool AutoDetectLaser::isCalibBoard(CloudType_::Ptr& cloud,
     #ifdef STATIC_ANALYSE
     // visualize_regist(cloud_boundary_registed, calib_template_, icp_cloud);
     // showPointXYZI(cloud, 2, "Unknown Plane");
-    visualize_regist(calib_template_, PCARegisted_boundary, C_target, U_target, 2, "PCA Registration Result");
-    visualize_regist(calib_template_, icp_cloud, C_target, U_target, rmse_ukn2tpl, rmse_tpl2ukn, 2, "ICP Registration Result");
+    visualize_regist(calib_template_, PCARegisted_boundary, 2, "PCA Registration Result");
+    visualize_regist(calib_template_, icp_cloud, rmse_ukn2tpl, rmse_tpl2ukn, 2, "ICP Registration Result");
     #endif
 
     if(rmse_ukn2tpl <= rmse_ukn2tpl_thre_ && rmse_tpl2ukn <= rmse_tpl2ukn_thre_)
@@ -1022,7 +1017,7 @@ CloudType_::Ptr AutoDetectLaser::IntensityFilter(CloudType_::Ptr& cloud_in, floa
 
 
 #ifdef STATIC_ANALYSE
-void AutoDetectLaser::visualize_regist(CloudType_::Ptr& source, CloudType_::Ptr& target, CloudType_::Ptr& registed, Eigen::Vector4f& C_source_, Eigen::Vector4f& C_target_, Eigen::Matrix3f& U_source_, Eigen::Matrix3f& U_target_)
+void AutoDetectLaser::visualize_regist(CloudType_::Ptr& source, CloudType_::Ptr& target, CloudType_::Ptr& registed)
 {
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer(new pcl::visualization::PCLVisualizer("Registration"));
     int v1 = 0, v2 = 1;
@@ -1042,9 +1037,9 @@ void AutoDetectLaser::visualize_regist(CloudType_::Ptr& source, CloudType_::Ptr&
     viewer->addPointCloud(target, tgt_h, "target cloud", v1);
     viewer->addPointCloud(target, tgt_h, "target cloud1", v2);
     viewer->addPointCloud(registed, trans_h, "registed cloud", v2);
-    visualEigenvalues(C_source_, U_source_, *viewer, v1, "arrow_source");
-    visualEigenvalues(C_target_, U_target_, *viewer, v1);
-    visualEigenvalues(C_target_, U_target_, *viewer, v2);
+    visualEigenvalues(C_source, U_source, *viewer, v1, "arrow_source");
+    visualEigenvalues(C_target, U_target, *viewer, v1);
+    visualEigenvalues(C_target, U_target, *viewer, v2);
 
 
     viewer->addCoordinateSystem(0.1);
@@ -1058,7 +1053,7 @@ void AutoDetectLaser::visualize_regist(CloudType_::Ptr& source, CloudType_::Ptr&
     return;
 }
 
-void AutoDetectLaser::visualize_regist(pcl::PointCloud<pcl::PointXYZI>::Ptr& target, pcl::PointCloud<pcl::PointXYZI>::Ptr& registed, Eigen::Vector4f& C_target_, Eigen::Matrix3f& U_target_, double sigma1, double sigma2, size_t dot_size, string viewer_title)
+void AutoDetectLaser::visualize_regist(pcl::PointCloud<pcl::PointXYZI>::Ptr& target, pcl::PointCloud<pcl::PointXYZI>::Ptr& registed, double sigma1, double sigma2, size_t dot_size, string viewer_title)
 {
     cout << "[visualize_regist]" << endl;
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer(new pcl::visualization::PCLVisualizer("Registration"));
@@ -1075,7 +1070,7 @@ void AutoDetectLaser::visualize_regist(pcl::PointCloud<pcl::PointXYZI>::Ptr& tar
 
     viewer->addPointCloud(target, tgt_h, "target cloud");
     viewer->addPointCloud(registed, trans_h, "registed cloud");
-    visualEigenvalues(C_target_, U_target_, *viewer);
+    visualEigenvalues(C_target, U_target, *viewer);
     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, dot_size, "target cloud");
     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, dot_size, "registed cloud");
 
@@ -1093,7 +1088,7 @@ void AutoDetectLaser::visualize_regist(pcl::PointCloud<pcl::PointXYZI>::Ptr& tar
     return;
 }
 
-void AutoDetectLaser::visualize_regist(pcl::PointCloud<pcl::PointXYZI>::Ptr& target, pcl::PointCloud<pcl::PointXYZI>::Ptr& registed, Eigen::Vector4f& C_target_, Eigen::Matrix3f& U_target_, size_t dot_size, string viewer_title)
+void AutoDetectLaser::visualize_regist(pcl::PointCloud<pcl::PointXYZI>::Ptr& target, pcl::PointCloud<pcl::PointXYZI>::Ptr& registed, size_t dot_size, string viewer_title)
 {
     cout << "[visualize_regist]" << endl;
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer(new pcl::visualization::PCLVisualizer("Registration"));
@@ -1107,7 +1102,7 @@ void AutoDetectLaser::visualize_regist(pcl::PointCloud<pcl::PointXYZI>::Ptr& tar
 
     viewer->addPointCloud(target, tgt_h, "target cloud");
     viewer->addPointCloud(registed, trans_h, "registed cloud");
-    visualEigenvalues(C_target_, U_target_, *viewer);
+    visualEigenvalues(C_target, U_target, *viewer);
     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, dot_size, "target cloud");
     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, dot_size, "registed cloud");
 

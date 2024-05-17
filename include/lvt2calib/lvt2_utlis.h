@@ -44,7 +44,7 @@ using namespace cv;
 using namespace pcl;
 using namespace tf;
 
-void sortPatternCentersYZ(pcl::PointCloud<pcl::PointXYZ>::Ptr pc, std::vector<pcl::PointXYZ> &v){
+void sortPatternCentersYZ(pcl::PointCloud<pcl::PointXYZ>::Ptr pc, std::vector<pcl::PointXYZ> &v, bool inverted=false){
   double avg_y = 0, avg_z = 0;
   for(pcl::PointCloud<pcl::PointXYZ>::iterator it=pc->points.begin(); it<pc->points.end(); it++){
     avg_y += (*it).y;
@@ -55,19 +55,79 @@ void sortPatternCentersYZ(pcl::PointCloud<pcl::PointXYZ>::Ptr pc, std::vector<pc
   center.y = avg_y/4.;
   center.z = avg_z/4.;
 
-  for(pcl::PointCloud<pcl::PointXYZ>::iterator it=pc->points.begin(); it<pc->points.end(); it++){
+  for(pcl::PointCloud<pcl::PointXYZ>::iterator it=pc->points.begin(); it<pc->points.end(); it++)
+  {
     double y_dif = (*it).y - center.y;
     double z_dif = (*it).z - center.z;
 
-    if(y_dif > 0 && z_dif > 0){
-      v[0] = (*it);
-    }else if(y_dif < 0 && z_dif > 0){
-      v[1] = (*it);
-    }else if(y_dif < 0 && z_dif < 0){
-      v[2] = (*it);
-    }else{
-      v[3] = (*it);
+    if(!inverted)
+    {
+      if(y_dif < 0 && z_dif < 0){
+        v[0] = (*it);
+      }else if(y_dif > 0 && z_dif < 0){
+        v[1] = (*it);
+      }else if(y_dif > 0 && z_dif > 0){
+        v[2] = (*it);
+      }else{
+        v[3] = (*it);
+      }
     }
+    else
+    {
+      if(y_dif > 0 && z_dif > 0){
+        v[0] = (*it);
+      }else if(y_dif < 0 && z_dif > 0){
+        v[1] = (*it);
+      }else if(y_dif < 0 && z_dif < 0){
+        v[2] = (*it);
+      }else{
+        v[3] = (*it);
+      }
+    }
+  }
+}
+
+void sortPatternCentersXY(pcl::PointCloud<pcl::PointXYZ>::Ptr pc, std::vector<pcl::PointXYZ> &v, bool inverted=true){
+  double avg_x = 0, avg_y = 0;
+  for(pcl::PointCloud<pcl::PointXYZ>::iterator it=pc->points.begin(); it<pc->points.end(); it++){
+    avg_x += (*it).x;
+    avg_y += (*it).y;
+  }
+
+  pcl::PointXYZ center;
+  center.x = avg_x/4.;
+  center.y = avg_y/4.;
+
+  for(pcl::PointCloud<pcl::PointXYZ>::iterator it=pc->points.begin(); it<pc->points.end(); it++)
+  {
+    double x_dif = (*it).x - center.x;
+    double y_dif = (*it).y - center.y;
+
+    if(!inverted)
+    {
+      if(x_dif < 0 && y_dif > 0){
+        v[0] = (*it);
+      }else if(x_dif < 0 && y_dif < 0){
+        v[1] = (*it);
+      }else if(x_dif > 0 && y_dif < 0){
+        v[2] = (*it);
+      }else{
+        v[3] = (*it);
+      }
+    }
+    else
+    {
+      if(x_dif > 0 && y_dif > 0){
+        v[0] = (*it);
+      }else if(x_dif < 0 && y_dif > 0){
+        v[1] = (*it);
+      }else if(x_dif < 0 && y_dif < 0){
+        v[2] = (*it);
+      }else{
+        v[3] = (*it);
+      }
+    }
+
   }
 }
 
@@ -187,11 +247,11 @@ void sortPatternCentersUV(std::vector<cv::Point2f> p, std::vector<cv::Point2f> &
     double u_dif = (*it).x - center.x;
     double v_dif = (*it).y - center.y;
 
-    if(u_dif < 0 && v_dif < 0){
+    if(u_dif > 0 && v_dif < 0){
       v[0] = (*it);
-    }else if(u_dif > 0 && v_dif < 0){
+    }else if(u_dif < 0 && v_dif < 0){
       v[1] = (*it);
-    }else if(u_dif > 0 && v_dif > 0){
+    }else if(u_dif < 0 && v_dif > 0){
       v[2] = (*it);
     }else{
       v[3] = (*it);

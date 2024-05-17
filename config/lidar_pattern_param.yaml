@@ -1,6 +1,6 @@
-# x_passthrough_filter: Remove the refelction noise produced by Livox. No need to be edit if unnecessary. 
+# x_passthrough_filter: Remove the reflection noise produced by Livox. No need to be edit if unnecessary. 
 remove_x_min: -1.0
-remove_x_max: 1.0
+remove_x_max: 1.5
 
 # voxel filter：use VoxelGrid to downsample and uniform the point cloud. 
 voxel_grid_size: 0.01
@@ -47,10 +47,11 @@ rmse_tpl2ukn_thre: 0.03
 # 0.03 ~ 0.05 
 
 # center extraction: based on circle extraction 
-circle_radius: 0.12
+circle_radius: 0.0754
 circle_seg_thre: 0.02
 centroid_dis_min: 0.15
-centroid_dis_max: 0.25
+centroid_dis_max: 0.45
+min_inter_center_dist: 0.15
 min_centers_found: 4
 
 # gause filter2: used to smooth the accumulated calibration board point cloud.      

@@ -11,8 +11,8 @@
     <arg name="ns_l2" default="laser2"/>
     <arg name="center_laser1_tp" default="/$(arg ns_l1)/centers_cloud"/>
     <arg name="center_laser2_tp" default="/$(arg ns_l2)/centers_cloud"/>
+    <arg name="featureFileName" default="features_info_$(arg ns_l1)_to_$(arg ns_l2)"/>
     <arg name="max_frame" default="60"/>
-    <arg name="feature_file_name" default="features_info_$(arg ns_l1)_to_$(arg ns_l2)"/>
 
 
     <param name="max_frame" type="int" value="$(arg max_frame)"/>
@@ -25,8 +25,8 @@
         
         <param name="ns_l1" value="$(arg ns_l1)"/>
         <param name="ns_l2" value="$(arg ns_l2)"/>
-        <!-- use centroid of laser patterns? default:true -->
-        <param name="useCentroid_laser" value="true" />
+        <!-- use centroid of laser patterns? default:false -->
+        <param name="useCentroid_laser" value="false" />
 
         <!-- Save file? -->        
         <param name="save_final_data" value="true"/>
@@ -34,7 +34,7 @@
 
         <!-- File Path -->
         <param name="result_dir_" type="string" value="$(find lvt2calib)/data/pattern_collection_result/"/>
-        <param name="feature_file_name" type="string" value="$(arg feature_file_name)"/>
+        <param name="feature_file_name" type="string" value="$(arg featureFileName)"/>
     
     </node>
 </launch>

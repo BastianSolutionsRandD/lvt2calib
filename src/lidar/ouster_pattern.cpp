@@ -143,11 +143,11 @@ void callback(const PointCloud2::ConstPtr& laser_cloud)
     
     if(ifDetected)
     {
-        ROS_WARN("<<<<<< [%s] Have found the calib borad point cloud!!!", ns_str.c_str());
+        ROS_WARN("<<<<<< [%s] Have found the calib board point cloud!!!", ns_str.c_str());
         publishPC<pcl::PointXYZI>(calib_board_pub, cloud_header, calib_board);   // topic: /velodyne_pattern/calib_board_cloud
     }
     else{
-        ROS_WARN("<<<<<< [%s] CANNOT find the calib borad!", ns_str.c_str());
+        ROS_WARN("<<<<<< [%s] CANNOT find the calib board!", ns_str.c_str());
     }
 }
 

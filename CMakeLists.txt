@@ -25,6 +25,7 @@ find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   cmake_modules
   message_generation
+  ultra_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -97,7 +98,8 @@ generate_messages(
   DEPENDENCIES
   std_msgs
   sensor_msgs
-  geometry_msgs 
+  geometry_msgs
+  ultra_msgs 
 )
 
 ################################################
@@ -263,6 +265,17 @@ add_dependencies(cam_pattern
 target_link_libraries(cam_pattern 
   ${catkin_LIBRARIES} 
   ${OpenCV_LIBS} 
+  ${PCL_LIBRARIES}
+)
+
+add_executable(pattern_collection_lc_automated src/pattern_collection/pattern_collection_lc_automated.cpp)
+add_dependencies(pattern_collection_lc_automated
+  ${catkin_EXPORTED_TARGETS}
+  lvt2calib_generate_messages_cpp
+)
+target_link_libraries(pattern_collection_lc_automated
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
   ${PCL_LIBRARIES}
 )
 

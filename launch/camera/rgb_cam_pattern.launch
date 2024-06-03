@@ -1,7 +1,9 @@
 <launch>
   <arg name="ifCompressed" default="false"/>
-  <arg name="image_tp" default="/vmpr_camera_color/image_raw"/>
-  <arg name="cam_info_dir" default="$(find lvt2calib)/data/camera_info/vmpr_camera_intrinsic.txt"/>
+  <arg name="rgb_camera_name" default="vmpr"/>
+
+  <arg name="image_tp" default="/$(arg rgb_camera_name)_camera_color/image_raw"/>
+  <arg name="cam_info_dir" default="$(find lvt2calib)/data/camera_info/$(arg rgb_camera_name)_camera_intrinsic.txt"/>
   <arg name="isDarkBoard" default="false"/>
   <arg name="ns_" default="rgb"/>
 

@@ -5,12 +5,16 @@
     <arg name="max_frame" default="60"/>
     <arg name="l2c_calib" default="false"/>
     <arg name="l2l_calib" default="false"/>
+    <arg name="rgb_camera_name" default="vmpr"/>
+    <arg name="depth_camera_name" default="vmpr"/>
 
     <group if="$(arg l2c_calib)">
         <include file="$(find lvt2calib)/launch/pattern_collection/pattern_collection_lc.launch">
             <arg name="ns_l" value="$(arg ns_s1)"/>
             <arg name="ns_c" value="$(arg ns_s2)"/>
             <arg name="max_frame" value="$(arg max_frame)"/>
+            <arg name="rgb_camera_name" value="$(arg rgb_camera_name)"/>
+            <arg name="depth_camera_name"  value="$(arg depth_camera_name)"/>
         </include>
     </group>
 

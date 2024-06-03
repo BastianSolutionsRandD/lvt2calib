@@ -1,0 +1,23 @@
+<launch>
+
+  <arg name="rgb_camera_name" default="vmpr"/>
+  <arg name="depth_camera_name" default="vmpr"/>
+
+  <!-- <include file="$(find lvt2calib)/launch/camera/rgb_cam_pattern.launch">
+    <arg name="rgb_camera_name" value="$(arg rgb_camera_name)"/>
+  </include> -->
+
+  <!-- <include file="$(find lvt2calib)/launch/lidar/depth_camera_livox_pattern.launch">
+    <arg name="depth_camera_name" value="$(arg depth_camera_name)"/>
+  </include> -->
+
+  <include file="$(find lvt2calib)/launch/pattern_collection/pattern_collection.launch">
+    <arg name="l2c_calib" value="true"/>
+    <arg name="max_frame" value="20"/>
+    <arg name="ns_s1" value="depth_camera"/>
+    <arg name="ns_s2" value="rgb"/>
+    <arg name="rgb_camera_name" value="$(arg rgb_camera_name)"/>
+    <arg name="depth_camera_name"  value="$(arg depth_camera_name)"/>
+  </include>
+
+</launch>

@@ -8,8 +8,10 @@
 
   <!-- <param name="max_frame" type="int" value="10" default="60"/> -->
 
+  <arg name="depth_camera_name" default="vmpr"/>
+
   <arg name="stdout" default="screen"/>
-  <arg name="cloud_tp" default="/vmpr_camera_depth/points"/>
+  <arg name="cloud_tp" default="/$(arg depth_camera_name)_camera_depth/points"/>
   <arg name="use_RG_Pseg" default="false"/>
   <arg name="use_passthrough_preprocess" default="true"/>
   <arg name="ns_" default="depth_camera"/>

@@ -22,6 +22,9 @@
 
 #include <tf2_ros/static_transform_broadcaster.h>
 
+#include <ultra_msgs/CameraCalibrationFeedback.h>
+#include <ultra_msgs/CameraCalibrationStatus.h>
+
 #define DEBUG 0
 
 using namespace std;
@@ -42,13 +45,21 @@ vector<pcl::PointXYZ> lv_3d_for_reproj;
 std::vector<cv::Point2f> lv_2d_projected, lv_2d_projected_min2d, lv_2d_projected_min3d,
                         cam_2d_for_reproj;
 int sample_size = 0, sample_num = 0, sample_size_min = 0, sample_size_max = 0;
-ostringstream os_calibfile_log, os_extrinsic_min3d, os_extrinsic_min2d;
+ostringstream os_calibfile_log, os_extrinsic_min3d, os_extrinsic_min2d, os_in_;
 
 list<int> sample_sequence;
 
 lvt2Calib mycalib(L2C_CALIB);
 
 tf2_ros::Buffer tfBuffer;
+
+bool calib_msg_updated_ = false;
+ros::Timer timer_;
+
+ultra_msgs::CameraCalibrationStatus cur_calib_msg_;
+ultra_msgs::CameraCalibrationStatus latest_calib_msg_;
+
+ros::Subscriber calib_status_sub_;
 
 // double calculateRADerr(double alpha_, double alpha_gt_)
 // {
@@ -408,10 +419,62 @@ void fileHandle()
 }
 
 
+void timerCallback(const ros::TimerEvent& event) 
+{
+    if(cur_calib_msg_.calib_status != latest_calib_msg_.calib_status) 
+    {
+        calib_msg_updated_ = true;
+    }
+    else
+    {
+        calib_msg_updated_ = false;
+    }
+
+    cur_calib_msg_ = latest_calib_msg_;
+
+    if (cur_calib_msg_.calib_status == cur_calib_msg_.SCAN_COMPLETE && calib_msg_updated_) 
+    {
+        ROS_INFO("Scan complete! Calculating calibration transform...");
+
+         // <<<<<<<<<<<<<<<<<<<<<<<<< loading data
+        ROS_WARN("********** Start Calibration **********");
+        ROS_WARN("********** 1.0 LOADING DATA **********");
+        if(mycalib.loadCSV(os_in_.str().c_str()))
+        {
+            std::ostringstream oss_CamIntrinsic;
+            oss_CamIntrinsic << camera_info_dir_;
+            ParameterReader pr_cam_intrinsic(oss_CamIntrinsic.str()); // ParameterReader is a class defined in "slamBase.h"
+            cameraMatrix = pr_cam_intrinsic.ReadMatFromTxt(pr_cam_intrinsic.getData("K"),3,3);
+            cv::cv2eigen(cameraMatrix, mycalib.cameraMatrix_);
+
+            fileHandle();
+            // <<<<<<<<<<<<<<<<<< random sample to do the calirbation
+            int total_pos_num = mycalib.feature_points.size();
+            if(!is_multi_exp)
+                RandSampleCalib(total_pos_num, 1);
+            else// for test
+            {
+                for(int i = 1; i <= total_pos_num; i++)
+                {
+                    cout << "<<<<< RandSampleCalib " << i << "/" << total_pos_num << " <<<<<" << endl;
+                    RandSampleCalib(i, total_pos_num);
+                }
+            }
+        }
+    }
+}
+
+void triggerCallback(const ultra_msgs::CameraCalibrationStatus& msg) 
+{
+    latest_calib_msg_ = msg;
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "extrinsic_calib_l2c");
     ros::NodeHandle nh_("~");
+
+    int update_rate;
 
     // Transform listener
     tf2_ros::TransformListener tfListener(tfBuffer);
@@ -427,50 +490,14 @@ int main(int argc, char **argv)
     nh_.param("is_auto_mode", is_auto_mode, false);
     nh_.param<string>("image_frame_id", image_frame_id, "");
     nh_.param<string>("cloud_frame_id", cloud_frame_id, "");
+    nh_.param<int>("update_rate", update_rate, 30);
+
     ref_ns = ns_l + "_to_" + ns_c;
-    ostringstream os_in;
-    os_in << features_info_dir_;
+    os_in_ << features_info_dir_;
 
-    if(is_auto_mode)
-    {
-        bool toStartCalib = false;
-        cout << "wait for pattern collection process..." << endl;
-        do
-        {
-            ros::param::get("/end_process", toStartCalib);
-        } while (!toStartCalib && ros::ok());
-        if(!ros::ok())
-        {
-            ros::shutdown();
-            return 0;
-        }
-        sleep(2);
-    }
+    timer_ = nh_.createTimer(ros::Duration(1.0/update_rate),
+                            &timerCallback);
+    calib_status_sub_ = nh_.subscribe("camera_calibration_status", 10, &triggerCallback);
 
-    // <<<<<<<<<<<<<<<<<<<<<<<<< laoding data
-    ROS_WARN("********** Start Calibration **********");
-    ROS_WARN("********** 1.0 LOADING DATA **********");
-    if(mycalib.loadCSV(os_in.str().c_str()))
-    {
-        std::ostringstream oss_CamIntrinsic;
-        oss_CamIntrinsic << camera_info_dir_;
-        ParameterReader pr_cam_intrinsic(oss_CamIntrinsic.str()); // ParameterReader is a class defined in "slamBase.h"
-        cameraMatrix = pr_cam_intrinsic.ReadMatFromTxt(pr_cam_intrinsic.getData("K"),3,3);
-        cv::cv2eigen(cameraMatrix, mycalib.cameraMatrix_);
-
-        fileHandle();
-        // <<<<<<<<<<<<<<<<<< random sample to do the calirbation
-        int total_pos_num = mycalib.feature_points.size();
-        if(!is_multi_exp)
-            RandSampleCalib(total_pos_num, 1);
-        else// for test
-        {
-            for(int i = 1; i <= total_pos_num; i++)
-            {
-                cout << "<<<<< RandSampleCalib " << i << "/" << total_pos_num << " <<<<<" << endl;
-                RandSampleCalib(i, total_pos_num);
-            }
-        }
-    }
-    return 0;
+    ros::spin();
 }

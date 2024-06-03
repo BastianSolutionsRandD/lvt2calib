@@ -312,6 +312,17 @@ target_link_libraries(extrinsic_calib_l2c
   ${CERES_LIBRARIES}
 )
 
+add_executable(extrinsic_calib_l2c_automated src/ex_calib/extrinsic_calib_l2c_automated.cpp)
+add_dependencies(extrinsic_calib_l2c_automated
+  ${catkin_EXPORTED_TARGETS}
+)
+target_link_libraries(extrinsic_calib_l2c_automated
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  ${PCL_LIBRARIES}
+  ${CERES_LIBRARIES}
+)
+
 add_executable(extrinsic_calib_l2l src/ex_calib/extrinsic_calib_l2l.cpp)
 add_dependencies(extrinsic_calib_l2l
   ${catkin_EXPORTED_TARGETS}

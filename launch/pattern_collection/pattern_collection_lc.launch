@@ -8,26 +8,33 @@
     
     <!-- the number of frames accumulated to do the calibration, default:60 -->
     <!-- laser -->
-    <arg name="ns_l" default="depth_camera"/> 
-    <arg name="cloud_frame_id" default="vmpr_camera_depth_optical_frame"/>
+    <arg name="ns_l" default="depth_camera"/>
+    <arg name="rgb_camera_name" default="vmpr"/> 
+    <arg name="depth_camera_name" default="vmpr"/> 
+
+    <arg name="cloud_frame_id" default="$(arg depth_camera_name)_camera_depth_optical_frame"/>
     <!-- camera -->
     <arg name="ns_c" default="rgb"/>
-    <arg name="image_frame_id" default="vmpr_camera_color_optical_frame"/>
+    <arg name="image_frame_id" default="$(arg rgb_camera_name)_camera_color_optical_frame"/>
     <arg name="center_laser_tp" default="/$(arg ns_l)/centers_cloud"/>
     <arg name="center_cam_tp" default="/$(arg ns_c)/cam_pattern/centers_cloud"/>
     <arg name="center_cam2d_tp" default="/$(arg ns_c)/cam_pattern/cam_2d_circle_center"/>
-    <arg name="max_frame" default="20"/>
+    <arg name="max_frame" default="60"/>
     <arg name="featureFileName" default="features_info_$(arg ns_l)_to_$(arg ns_c)"/>
 
 
     <param name="max_frame" type="int" value="$(arg max_frame)"/>
 
     <!-- Main Node -->
-    <node pkg="lvt2calib" type="pattern_collection_lc" name="pattern_collection_lc" output="screen">
+    <node pkg="lvt2calib" type="pattern_collection_lc_automated" name="pattern_collection_lc_automated" output="screen">
     
         <remap from="~cloud_laser" to="$(arg center_laser_tp)"/>
         <remap from="~cloud_cam" to="$(arg center_cam_tp)"/>
         <remap from="~cloud_cam2d" to="$(arg center_cam2d_tp)"/>
+        
+        <remap from="/camera_calibration_status" to="eip/camera_calibration_status"/>
+        <remap from="/camera_calibration_feedback" to="eip/camera_calibration_feedback"/>
+    
 
         <param name="ns_lv" value="$(arg ns_l)"/>
         <param name="ns_cv" value="$(arg ns_c)"/>

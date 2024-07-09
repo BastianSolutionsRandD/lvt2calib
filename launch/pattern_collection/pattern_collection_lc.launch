@@ -13,17 +13,16 @@
     <arg name="depth_camera_name" default="vmpr"/> 
 
     <arg name="cloud_frame_id" default="$(arg depth_camera_name)_camera_depth_optical_frame"/>
+    <!-- <arg name="cloud_frame_id" default="sick_visionary_t_mini_depth_optical_frame"/> -->
     <!-- camera -->
     <arg name="ns_c" default="rgb"/>
     <arg name="image_frame_id" default="$(arg rgb_camera_name)_camera_color_optical_frame"/>
     <arg name="center_laser_tp" default="/$(arg ns_l)/centers_cloud"/>
     <arg name="center_cam_tp" default="/$(arg ns_c)/cam_pattern/centers_cloud"/>
     <arg name="center_cam2d_tp" default="/$(arg ns_c)/cam_pattern/cam_2d_circle_center"/>
-    <arg name="max_frame" default="60"/>
+    <arg name="max_frame" default="10"/>
+    <arg name="rgb_depth_detection_timeout" default="30.0"/>
     <arg name="featureFileName" default="features_info_$(arg ns_l)_to_$(arg ns_c)"/>
-
-
-    <param name="max_frame" type="int" value="$(arg max_frame)"/>
 
     <!-- Main Node -->
     <node pkg="lvt2calib" type="pattern_collection_lc_automated" name="pattern_collection_lc_automated" output="screen">
@@ -32,8 +31,8 @@
         <remap from="~cloud_cam" to="$(arg center_cam_tp)"/>
         <remap from="~cloud_cam2d" to="$(arg center_cam2d_tp)"/>
         
-        <remap from="/camera_calibration_status" to="eip/camera_calibration_status"/>
-        <remap from="/camera_calibration_feedback" to="eip/camera_calibration_feedback"/>
+        <remap from="~camera_calibration_status" to="eip/camera_calibration_status"/>
+        <remap from="~camera_calibration_feedback" to="eip/camera_calibration_feedback"/>
     
 
         <param name="ns_lv" value="$(arg ns_l)"/>
@@ -42,16 +41,19 @@
         <param name="image_frame_id" value="$(arg image_frame_id)"/>
         <param name="cloud_frame_id" value="$(arg cloud_frame_id)"/>
 
+        <param name="max_frame" type="int" value="$(arg max_frame)"/>
+        <param name="rgb_depth_detection_timeout" type="double" value="$(arg rgb_depth_detection_timeout)"/>
+
         <!-- use centroid of laser patterns? default:false -->
         <param name="useAccCenters_laser" value="false" />
 
         <!-- Save file? -->        
-        <param name="save_final_data" value="true"/>
+        <param name="save_final_data" type="bool" value="true"/>
         <!-- MUST TRUE!!! -->
 
         <!-- File Path -->
         <param name="result_dir_" type="string" value="$(find lvt2calib)/data/pattern_collection_result/"/>
         <param name="feature_file_name" type="string" value="$(arg featureFileName)"/>
-    
+
     </node>
 </launch>

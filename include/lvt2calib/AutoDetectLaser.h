@@ -221,6 +221,7 @@ bool AutoDetectLaser::detectCalibBoard(CloudType_::Ptr &cloud_in,
     showPointXYZI(cloud_in, 2, "Raw Cloud_in");
     #endif
     
+    // TODO - remove range filtering here and do it outside the detector
     // ************************ 1. x-filter ***********************
     CloudType_::Ptr x_filtered (new CloudType_);
     pcl::PassThrough<PointType_> pass_x;
@@ -237,7 +238,7 @@ bool AutoDetectLaser::detectCalibBoard(CloudType_::Ptr &cloud_in,
         CloudType_::Ptr cloud_to_divide (new CloudType_);
         pcl::VoxelGrid<PointType_> sor;
 
-        // The size of point cloud is too large. It's neccessary to divide it into multiple blocks to do downsampling
+        // The size of point cloud is too large. It's necessary to divide it into multiple blocks to do downsampling
         PointType_ minP, maxP;
         pcl::getMinMax3D(*x_filtered, minP, maxP);
         double dis_x = maxP.x - minP.x,

@@ -3,7 +3,7 @@
   <arg name="rgb_camera_name" default="vmpr"/>
 
   <arg name="image_tp" default="/$(arg rgb_camera_name)_camera_color/image_raw"/>
-  <arg name="cam_info_dir" default="$(find lvt2calib)/data/camera_info/$(arg rgb_camera_name)_camera_intrinsic.txt"/>
+  <arg name="camera_info_topic" default="/$(arg rgb_camera_name)_camera_color/camera_info"/>
   <arg name="isDarkBoard" default="false"/>
   <arg name="ns_" default="rgb"/>
 
@@ -21,7 +21,7 @@
     <arg name="isDarkBoard" value="$(arg isDarkBoard)"/>
     <arg name="ns_" value="$(arg ns_)"/>
     
-    <arg name="cam_info_dir" value="$(arg cam_info_dir)"/>
+    <arg name="camera_info_topic" value="$(arg camera_info_topic)"/>
     <arg name="image_tp" value="$(arg image_tp)"/>
     <arg name="ifCompressed" value="$(arg ifCompressed)"/>
 

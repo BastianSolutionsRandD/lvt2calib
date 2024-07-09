@@ -57,7 +57,7 @@ using namespace Eigen;
 
 class PatternCollectionNode {
 public:
-    PatternCollectionNode() : nh_() 
+    PatternCollectionNode() : nh_("~") 
     {
 
         lv.resize(4);
@@ -71,9 +71,9 @@ public:
 
         int update_rate;
 
-        nh_.param<bool>("useCentroid_laser", useCentroid_laser, false);
-        nh_.param<bool>("save_final_data", save_final_data, false);
-        
+        nh_.param<bool>("useCentroid_laser", use_centroid_laser_, false);
+        nh_.param<bool>("save_final_data", save_final_data_, false);
+
         nh_.param<string>("result_dir_", result_dir_, "");
         nh_.param<string>("feature_file_name",feature_file_name_, "");
         nh_.param<string>("ns_lv", ns_lv, "LASER");
@@ -81,33 +81,32 @@ public:
         nh_.param<string>("image_frame_id", image_frame_id_, "");
         nh_.param<string>("cloud_frame_id", cloud_frame_id_, "");
         nh_.param<int>("update_rate", update_rate, 30);
-        nh_.param<int>("min_detections_per_pose", min_detections_per_pose_, 10);
-        nh_.param<double>("rgb_depth_detection_timeout", detection_timeout_, 10.0);
-        ros::param::get("/max_frame", max_frame);
+        nh_.param<double>("rgb_depth_detection_timeout", detection_timeout_, 5.0);
+        nh_.param<int>("max_frame", max_frame_, 60);
         
         timer_ = nh_.createTimer(ros::Duration(1.0/update_rate),
                                 &PatternCollectionNode::timerCallback, this);
 
-        laserReceived = false;
+        laser_received_ = false;
         laser_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
-        cameraReceived = false;
+        camera_received_ = false;
         camera_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
         
-        acc_laser_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
-        acc_camera_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+        acc_laser_cloud_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+        acc_camera_cloud_ = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
 
-        acc_laser_cloud_pub = nh_.advertise<PointCloud2>("acc_laser_centers",1);
+        acc_laser_cloud_pub_ = nh_.advertise<PointCloud2>("acc_laser_centers",1);
         marker_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("point_visualization_marker", 10);
-        calib_fbk_pub_ = nh_.advertise<ultra_msgs::CameraCalibrationFeedback>("camera_calibration_feedback", 10);
+        calib_feedback_pub_ = nh_.advertise<ultra_msgs::CameraCalibrationFeedback>("camera_calibration_feedback", 10);
 
         calib_status_sub_ = nh_.subscribe("camera_calibration_status", 10, &PatternCollectionNode::triggerCallback, this);
     }
 
 
-    void laser_callback(const lvt2calib::ClusterCentroids::ConstPtr livox_centroids)
+    void laserCallback(const lvt2calib::ClusterCentroids::ConstPtr livox_centroids)
     {
         if(DEBUG) ROS_INFO("[%s] Laser pattern ready!", ns_lv.c_str());
-        laserReceived = true;
+        laser_received_ = true;
 
         if(DEBUG) cout << "[" << ns_lv << "] livox_centroids->cloud.size = " << livox_centroids->cloud.width << endl;
         fromROSMsg(livox_centroids->cloud, *laser_cloud);
@@ -126,22 +125,22 @@ public:
             for(vector<pcl::PointXYZ>::iterator it=lv.begin(); it<lv.end(); ++it)
                 cout << "l" << it - lv.begin() << "="<< "[" << (*it).x << " " << (*it).y << " " << (*it).z << "]" << endl;
         }
-        if(laserReceived)
+        if(laser_received_)
             recordFeature_laser(livox_centroids -> cluster_iterations);
 
         sensor_msgs::PointCloud2 acc_laser_cloud_ros;
-        pcl::toROSMsg(*acc_laser_cloud, acc_laser_cloud_ros);
+        pcl::toROSMsg(*acc_laser_cloud_, acc_laser_cloud_ros);
         acc_laser_cloud_ros.header = livox_centroids->header;
-        acc_laser_cloud_pub.publish(acc_laser_cloud_ros);  // Topic: /pattern_collection/acc_laser_cloud
-
+        acc_laser_cloud_pub_.publish(acc_laser_cloud_ros);  // Topic: /pattern_collection/acc_laser_cloud
+        
         return;
     }
 
-    void camera_callback(lvt2calib::ClusterCentroids::ConstPtr image_centroids)
+    void cameraCallback(lvt2calib::ClusterCentroids::ConstPtr image_centroids)
     {
         if(DEBUG) ROS_INFO("[%s] Camera pattern ready!", ns_cv.c_str());
 
-        cameraReceived = true;
+        camera_received_ = true;
         fromROSMsg(image_centroids->cloud, *camera_cloud);
         sortPatternCentersXY(camera_cloud, camv);
 
@@ -155,14 +154,14 @@ public:
             for(vector<pcl::PointXYZ>::iterator it=camv.begin(); it<camv.end(); ++it)
                 cout << "c" << it - camv.begin() << "="<< "[" << (*it).x << " " << (*it).y << " " << (*it).z << "]"<<endl;
         }
-        // if(cameraReceived && cam2dReceived && !cam_end)
-        if(cameraReceived && cam2dReceived)
-            recordFeature_cam();
+        // if(camera_received_ && cam_2d_received_ && !cam_end)
+        if(camera_received_ && cam_2d_received_)
+            recordFeatureCam();
 
     }
 
 
-    void cam_2d_callback(const lvt2calib::Cam2DCircleCenters::ConstPtr cam_2d_circle_centers_msg){
+    void cam2dCallback(const lvt2calib::Cam2DCircleCenters::ConstPtr cam_2d_circle_centers_msg){
     
     if(DEBUG) ROS_INFO("[%s] Camera 2d pattern ready!", ns_cv.c_str());
     if (cam_2d_circle_centers_msg->points.size() != 4){
@@ -192,17 +191,17 @@ public:
             cout << "c2d_" << i << ": " << cam_2d_centers_sorted[i].x << " " << cam_2d_centers_sorted[i].y << endl;
         }
     }
-    cam2dReceived = true;
+    cam_2d_received_ = true;
     }
 
     void recordFeature_laser(int acc_frame)
     {
         if(!laser_end)
         {
-            acc_laser_frame = acc_frame;
+            acc_laser_frame++;
             // ROS_WARN("***************************************");
             // ROS_WARN("[%s] Record Features......[FRAME: %d/%d]", ns_lv.c_str(), acc_frame, max_frame);
-            ROS_WARN("[%s] Record Features......[%s: %d/%d %s: %d/%d]", ns_lv.c_str(), ns_lv.c_str(), acc_laser_frame, max_frame, ns_cv.c_str(), acc_cam_frame, max_frame);
+            ROS_WARN("[%s] Record Features......[%s: %d/%d %s: %d/%d]", ns_lv.c_str(), ns_lv.c_str(), acc_laser_frame, max_frame_, ns_cv.c_str(), acc_cam_frame, max_frame_);
             // ROS_WARN("***************************************");
 
             std::vector<pcl::PointXYZ> local_lv;
@@ -211,10 +210,10 @@ public:
 
             local_lv = lv;
             local_laser_cloud = laser_cloud;
-            *acc_laser_cloud += *local_laser_cloud;
+            *acc_laser_cloud_ += *local_laser_cloud;
 
             std::vector<pcl::PointXYZ> centroid_acc_lv;
-            if (useCentroid_laser)
+            if (use_centroid_laser_)
             {
                 if(DEBUG) ROS_WARN("[%s] A. Use centroid!", ns_lv.c_str());
                 // 4 center clusters
@@ -262,19 +261,19 @@ public:
 
             std::vector<double> rmse_3d_lidar_wt_centroid;
             
-            if(acc_frame == max_frame)
+            if(acc_laser_frame >= max_frame_)
             {
                 laser_end = true;
                 final_centroid_acc_lv = centroid_acc_lv;
 
                 ROS_WARN("[%s] REACH THE MAX FRAME", ns_lv.c_str());
-                if(save_final_data && laser_end && cam_end)
+                // ROS_WARN("%d %d %d", save_final_data_, laser_end, cam_end);
+                if(save_final_data_ && laser_end && cam_end)
                 {
                     laser_end = false;
                     cam_end = false;
 
-                    ROS_INFO("----- To save this data, please press 'Y' and 'ENTER'!");
-                    ROS_INFO("----- If you want to skip this data, please press 'N' and 'ENTER'!");
+                    ROS_INFO("----- Press 'Y' to save the data or 'N' to skip it!");
                     char key;
                     cin >> key;
                     if(key != 'Y' && key != 'y')
@@ -284,7 +283,7 @@ public:
                     }
                     else
                     {
-                        final_saved =true;
+                        final_saved_ = true;
 
                         ROS_INFO("<<< Saving Data...");
                         writeCircleCenters(os_final.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
@@ -296,9 +295,11 @@ public:
                     }
 
                     ROS_INFO("Successful detection completion!");
-                    ultra_msgs::CameraCalibrationFeedback calib_fbk_msg;
-                    calib_fbk_msg.calib_fbk = calib_fbk_msg.DETECTION_RECEIVED;
-                    calib_fbk_pub_.publish(calib_fbk_msg);
+                    ultra_msgs::CameraCalibrationFeedback calib_feedback_msg;
+                    calib_feedback_msg.calib_feedback = calib_feedback_msg.DETECTION_VALID;
+                    calib_feedback_pub_.publish(calib_feedback_msg);
+
+                    std::cout << "Final saved: " << final_saved_ << std::endl;
 
                     laser_sub_.shutdown();
                     stereo_sub_.shutdown();
@@ -312,16 +313,16 @@ public:
             marker_arr.markers.push_back(cam_2d_marker);
             marker_pub_.publish(marker_arr);
         }
-        laserReceived = false;
+        laser_received_ = false;
     }
 
-    void recordFeature_cam()
+    void recordFeatureCam()
     {
         if(!cam_end)
         {
             acc_cam_frame ++;
             // ROS_WARN("***************************************");
-            ROS_WARN("[%s] Record Features......[%s: %d/%d %s: %d/%d]", ns_cv.c_str(), ns_cv.c_str(), acc_cam_frame, max_frame, ns_lv.c_str(), acc_laser_frame, max_frame);
+            ROS_WARN("[%s] Record Features......[%s: %d/%d %s: %d/%d]", ns_cv.c_str(), ns_cv.c_str(), acc_cam_frame, max_frame_, ns_lv.c_str(), acc_laser_frame, max_frame_);
             // ROS_WARN("***************************************");
 
             std::vector<pcl::PointXYZ> local_cv;
@@ -385,7 +386,7 @@ public:
             // genMarker(cam_marker, "base_link", "cam_points", centroid_acc_cv[0], centroid_acc_cv[1], centroid_acc_cv[2], centroid_acc_cv[3]);
 
             std::vector<cv::Point2f> centroid_acc_cv_2d = {centroid_cv_2d_0, centroid_cv_2d_1, centroid_cv_2d_2, centroid_cv_2d_3};
-            *acc_camera_cloud += *local_camera_cloud;
+            *acc_camera_cloud_ += *local_camera_cloud;
 
             std::vector<pcl::PointXYZ> centroid_acc_cv_2d_pcl;
             for(const auto& point: centroid_acc_cv_2d)
@@ -405,19 +406,19 @@ public:
                     cout << "detected_3d_cam_wt_centroid" << it - centroid_acc_cv.begin() << "="<< "[" << (*it).x << " " << (*it).y << " " << (*it).z << "]" << endl;
                 }
 
-            if(acc_cam_frame == max_frame)
+            if(acc_cam_frame >= max_frame_)
             {
                 cam_end = true;
                 final_centroid_acc_cv = centroid_acc_cv;
                 final_cam_2d_centers_sorted = centroid_acc_cv_2d;
 
                 ROS_WARN("[%s] REACH THE MAX FRAME", ns_cv.c_str());
-                if(save_final_data && laser_end && cam_end)
+                // ROS_WARN("%d %d %d", save_final_data_, laser_end, cam_end);
+                if(save_final_data_ && laser_end && cam_end)
                 {
                     laser_end = false;
                     cam_end = false;
 
-                    ROS_INFO("----- To save this data, please press 'Y' and 'ENTER'!");
                     ROS_INFO("----- If want to skip this data, please press 'N' and 'ENTER'!");
                     char key;
                     cin >> key;
@@ -428,7 +429,7 @@ public:
                     }
                     else
                     {
-                        final_saved =true;
+                        final_saved_ =true;
 
                         ROS_INFO("<<< Saving Data...");
                         writeCircleCenters(os_final.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
@@ -439,9 +440,11 @@ public:
                     }
 
                     ROS_INFO("Successful detection completion!");
-                    ultra_msgs::CameraCalibrationFeedback calib_fbk_msg;
-                    calib_fbk_msg.calib_fbk = calib_fbk_msg.DETECTION_RECEIVED;
-                    calib_fbk_pub_.publish(calib_fbk_msg);
+                    ultra_msgs::CameraCalibrationFeedback calib_feedback_msg;
+                    calib_feedback_msg.calib_feedback = calib_feedback_msg.DETECTION_VALID;
+                    calib_feedback_pub_.publish(calib_feedback_msg);
+
+                    std::cout << "Final saved: " << final_saved_ << std::endl;
 
                     laser_sub_.shutdown();
                     stereo_sub_.shutdown();
@@ -456,8 +459,8 @@ public:
             marker_pub_.publish(marker_arr);
         }
 
-        cameraReceived = false;
-        cam2dReceived = false;
+        camera_received_ = false;
+        cam_2d_received_ = false;
     }
 
     void genMarker(visualization_msgs::Marker& marker, string frame_id, string ns, pcl::PointXYZ p1, pcl::PointXYZ p2, pcl::PointXYZ p3, pcl::PointXYZ p4)
@@ -549,7 +552,7 @@ public:
 
     void fileHandle()
     {
-        if(save_final_data)
+        if(save_final_data_)
         {
             os_final.str("");
             os_final_realtime.str("");
@@ -576,13 +579,13 @@ public:
 
         of_file << currentDateTime();
 
-        for(int i = 0; i < 4; i++)
+        for(size_t i = 0; i < centers_v_laser.size(); i++)
             of_file << "," << centers_v_laser[i].x << "," << centers_v_laser[i].y << "," << centers_v_laser[i].z;
         
-        for(int i = 0; i < 4; i++)
+        for(size_t i = 0; i < centers_v_cam_3d.size(); i++)
             of_file << "," << centers_v_cam_3d[i].x << "," << centers_v_cam_3d[i].y << "," << centers_v_cam_3d[i].z;
         
-        for(int i = 0; i < 4; i++)
+        for(size_t i = 0; i < centers_v_cam_2d.size(); i++)
             of_file << "," << centers_v_cam_2d[i].x << "," << centers_v_cam_2d[i].y;
 
         of_file << endl;
@@ -594,7 +597,6 @@ public:
         if(cur_calib_msg_.calib_status != latest_calib_msg_.calib_status) 
         {
             calib_msg_updated_ = true;
-            ROS_INFO("Value updated!!!");
         }
         else
         {
@@ -605,9 +607,9 @@ public:
 
         if(cur_calib_msg_.calib_status == cur_calib_msg_.MOVING)
         {
-            ultra_msgs::CameraCalibrationFeedback calib_fbk_msg;
-            calib_fbk_msg.calib_fbk = calib_fbk_msg.DEFAULT;
-            calib_fbk_pub_.publish(calib_fbk_msg);
+            ultra_msgs::CameraCalibrationFeedback calib_feedback_msg;
+            calib_feedback_msg.calib_feedback = calib_feedback_msg.DEFAULT;
+            calib_feedback_pub_.publish(calib_feedback_msg);
         }
         else if (cur_calib_msg_.calib_status == cur_calib_msg_.AT_POSITION && calib_msg_updated_) {
             ROS_INFO("EOAT at position!");
@@ -616,42 +618,63 @@ public:
             start_time_ = ros::Time::now();
             timer_started_ = true;
 
+            ros::param::set("/do_acc_boards", true);
+            ros::param::set("/pause_process", false);
+            ros::spinOnce();
+
             // Initialize subscribers
-            laser_sub_ = nh_.subscribe("cloud_laser", 1, &PatternCollectionNode::laser_callback, this);
-            stereo_sub_ = nh_.subscribe("cloud_cam", 1, &PatternCollectionNode::camera_callback, this);
-            stereo_2d_circle_centers_sub_ = nh_.subscribe("cloud_cam2d", 1, &PatternCollectionNode::cam_2d_callback, this);
+            ROS_INFO("Initializing subscribers for laser and camera");
+            laser_sub_ = nh_.subscribe("cloud_laser", 1, &PatternCollectionNode::laserCallback, this);
+            stereo_sub_ = nh_.subscribe("cloud_cam", 1, &PatternCollectionNode::cameraCallback, this);
+            stereo_2d_circle_centers_sub_ = nh_.subscribe("cloud_cam2d", 1, &PatternCollectionNode::cam2dCallback, this);
 
         } 
         else if (cur_calib_msg_.calib_status == cur_calib_msg_.SCAN_COMPLETE && calib_msg_updated_) {
             ROS_INFO("Scan complete! Calculating calibration transform...");
-
-            // Run calculation script here
+            return;
         }
 
-        while(timer_started_)
+        if(timer_started_ && cur_calib_msg_.calib_status == cur_calib_msg_.AT_POSITION)
         {
-            ros::Time current_time = ros::Time::now();
-            ros::Duration elapsed_time = current_time - start_time_;
-            
-            if(timer_started_ && elapsed_time.toSec() > detection_timeout_)
+            current_time_ = ros::Time::now();
+            ros::Duration elapsed_time = current_time_ - start_time_;
+            if(elapsed_time.toSec() > detection_timeout_ || (max_frame_ < std::min(acc_laser_frame, acc_cam_frame)))
             {
+                ultra_msgs::CameraCalibrationFeedback calib_feedback_msg;
 
-                ROS_WARN("Detection loop has been running for more than %.2f seconds! Exiting loop.", detection_timeout_);
-                ROS_WARN("Enough samples not detected for this pose, number of laser samples: %i, number of camera samples %i, min required samples: %i", acc_laser_frame, acc_cam_frame, min_detections_per_pose_);
+                if(elapsed_time.toSec() > detection_timeout_)
+                {
+                    ROS_WARN("Detection loop has been running for more than %.2f seconds! Exiting loop.", detection_timeout_);
+                    calib_feedback_msg.calib_feedback = calib_feedback_msg.DETECTION_INVALID;
+                    timeout_ = true;
+                }
+                else if(max_frame_ > std::min(acc_laser_frame, acc_cam_frame))
+                {
+                    ROS_WARN("Enough samples not detected for this pose, number of laser samples: %i, number of camera samples %i, min required samples: %i", acc_laser_frame, acc_cam_frame, max_frame_);
+                    calib_feedback_msg.calib_feedback = calib_feedback_msg.DETECTION_INVALID;
+                    enough_frames_detected_ = false;
+                }
+                else
+                {
+                    enough_frames_detected_ = true;
+                    ROS_INFO("Successful camera and laser detection!");
+                    calib_feedback_msg.calib_feedback = calib_feedback_msg.DETECTION_VALID;
+                    
+                }
 
-                ultra_msgs::CameraCalibrationFeedback calib_fbk_msg;
-                calib_fbk_msg.calib_fbk = calib_fbk_msg.DETECTION_RECEIVED;
-                calib_fbk_pub_.publish(calib_fbk_msg);
+                calib_feedback_pub_.publish(calib_feedback_msg);
 
                 laser_sub_.shutdown();
                 stereo_sub_.shutdown();
                 stereo_2d_circle_centers_sub_.shutdown();
 
-                // calib_fbk_msg.calib_fbk = calib_fbk_msg.DEFAULT;
-                // calib_fbk_pub_.publish(calib_fbk_msg);
+                // calib_feedback_msg.calib_feedback = calib_feedback_msg.DEFAULT;
+                // calib_feedback_pub_.publish(calib_feedback_msg);
 
                 timer_started_ = false;
             }
+
+            ros::spinOnce();
 
         }    
     }
@@ -677,61 +700,63 @@ public:
         ROS_INFO("Doing repeated task");
     }
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, camera_cloud;
-std::vector<pcl::PointXYZ> lv, camv;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, camera_cloud;
+    std::vector<pcl::PointXYZ> lv, camv;
 
-std::vector<cv::Point2f>  cam_2d_centers, cam_2d_centers_sorted;  // centers
-std::vector<std::vector<cv::Point2f>> acc_cv_2d;
-pcl::PointCloud<pcl::PointXYZ>::Ptr acc_laser_cloud, acc_camera_cloud;
-std::vector<std::vector<pcl::PointXYZ>> acc_lv, acc_cv;  // accumulate 4 center points
+    std::vector<cv::Point2f>  cam_2d_centers, cam_2d_centers_sorted;  // centers
+    std::vector<std::vector<cv::Point2f>> acc_cv_2d;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr acc_laser_cloud_, acc_camera_cloud_;
+    std::vector<std::vector<pcl::PointXYZ>> acc_lv, acc_cv;  // accumulate 4 center points
 
-std::vector<pcl::PointXYZ> final_centroid_acc_lv, final_centroid_acc_cv;
-std::vector<cv::Point2f> final_cam_2d_centers_sorted;  // centers
+    std::vector<pcl::PointXYZ> final_centroid_acc_lv, final_centroid_acc_cv;
+    std::vector<cv::Point2f> final_cam_2d_centers_sorted;  // centers
 
-ros::Publisher acc_laser_cloud_pub, acc_camera_pc_pub_;
-ros::Publisher marker_pub_;
-ros::Publisher calib_fbk_pub_;
+    ros::Publisher acc_laser_cloud_pub_, acc_camera_pc_pub_;
+    ros::Publisher marker_pub_;
+    ros::Publisher calib_feedback_pub_;
 
-ros::Subscriber laser_sub_;
-ros::Subscriber stereo_sub_;
-ros::Subscriber stereo_2d_circle_centers_sub_;
+    ros::Subscriber laser_sub_;
+    ros::Subscriber stereo_sub_;
+    ros::Subscriber stereo_2d_circle_centers_sub_;
 
-ros::Subscriber calib_status_sub_;
+    ros::Subscriber calib_status_sub_;
 
 
-ros::Timer timer_;
-ros::Time start_time_;
+    ros::Timer timer_;
+    ros::Time start_time_;
+    ros::Time current_time_;
 
-ros::NodeHandle nh_;
+    ros::NodeHandle nh_;
 
-ultra_msgs::CameraCalibrationStatus cur_calib_msg_;
-ultra_msgs::CameraCalibrationStatus latest_calib_msg_;
+    ultra_msgs::CameraCalibrationStatus cur_calib_msg_;
+    ultra_msgs::CameraCalibrationStatus latest_calib_msg_;
 
-bool timer_started_ = false;
+    bool timer_started_ = false;
 
-double detection_timeout_;
+    double detection_timeout_;
 
-bool useCentroid_laser = false;
-bool save_final_data = false;
+    bool use_centroid_laser_ = false;
+    bool save_final_data_ = false;
 
-bool laserReceived, cameraReceived, cam2dReceived;
-bool laser_end = false, cam_end = false, final_saved = false, skip_current_step = false;
+    bool laser_received_, camera_received_, cam_2d_received_;
+    bool laser_end = false, cam_end = false, final_saved_ = false, skip_current_step = false;
 
-string result_dir_, feature_file_name_;
-string ns_lv, ns_cv;
-string image_frame_id_, cloud_frame_id_;
-ostringstream os_final, os_final_realtime;
-int max_frame = 10;
-int acc_cam_frame = 0, acc_laser_frame = 0;
+    string result_dir_, feature_file_name_;
+    string ns_lv, ns_cv;
+    string image_frame_id_, cloud_frame_id_;
+    ostringstream os_final, os_final_realtime;
+    int max_frame_;
+    int acc_cam_frame = 0, acc_laser_frame = 0;
 
-int min_detections_per_pose_ = 3;
-int sample_index_ = 0;
+    int sample_index_ = 0;
 
-bool calib_msg_updated_ = false;
+    bool calib_msg_updated_ = false;
+    bool timeout_ = false;
+    bool enough_frames_detected_ = true;
 
-visualization_msgs::Marker cam_marker;
-visualization_msgs::Marker cam_2d_marker;
-visualization_msgs::Marker laser_marker;
+    visualization_msgs::Marker cam_marker;
+    visualization_msgs::Marker cam_2d_marker;
+    visualization_msgs::Marker laser_marker;
 
 };
 
@@ -742,117 +767,97 @@ int main(int argc, char **argv)
 
     PatternCollectionNode pc_node;
 
-    ROS_INFO("Hereee!");
-
     ROS_INFO("Initialized!");
     int posNo = 0;
     ros::Rate loop_rate(30);
    
-    pcl::console::TicToc t_process;
     double Process_time_ = 0.0;
 
-    ROS_WARN("<<<<<<<<<<<< [COLLECT] READY? <<<<<<<<<<<<");
-    ROS_INFO("----- If yes, please press 'Y' and 'ENTER'!");
-    ROS_INFO("----- If want to quit, please press 'N' and 'ENTER'!");
-    char key;
-    cin >> key;
-    if(key == 'Y' || key == 'y')
+    ROS_INFO("----- Continue..."); 
+    pc_node.fileHandle();
+
+    while(ros::ok())
     {
-        ROS_INFO("----- Continue..."); 
-        pc_node.fileHandle();
-        t_process.tic();
-        
-        while(ros::ok())
+        if(pc_node.final_saved_ || pc_node.skip_current_step || pc_node.timeout_ || !pc_node.enough_frames_detected_)
         {
-            if(!pc_node.useCentroid_laser)
-                ros::param::set("/do_acc_boards", true);
-            else
-                ros::param::set("/do_acc_boards", false);
+
+            ros::param::set("/pause_process", true);
+            ros::param::set("/do_acc_boards", false);
+
             ros::spinOnce();
 
-            if(pc_node.final_saved || pc_node.skip_current_step)
+            // if(pc_node.latest_calib_msg_.calib_status == pc_node.latest_calib_msg_.SCAN_COMPLETE)
+            // {
+            //     ROS_WARN("<<<<<<<<<<<< SCAN COMPLETE <<<<<<<<<<<<");
+            //     ros::param::set("/end_process", true);
+            //     break;
+            // }
+            // else
+            // {
+            //     ROS_WARN("PLC should request end of calibration / compute calibration value");
+            // }
+
+            // ros::param::set("bag_changed", true);
+            if(!pc_node.skip_current_step && !pc_node.timeout_)
             {
-                Process_time_ = t_process.toc();
+                posNo ++;
+            }
 
-                ros::param::set("/pause_process", true);
-                ros::param::set("/do_acc_boards", false);
-    
-                ROS_WARN("<<<<<<<<<<<< [COLLECT] PROCESS FINISHED! <<<<<<<<<<<<");
-                ROS_WARN("<<<<<<<<<<<< COST TIME: %fs", (float) Process_time_ / 1000);
-                if(pc_node.skip_current_step)
-                {
-                    ROS_INFO("Have processed %d positions. Need to collect patterns in the next position?", posNo);
-                }
-                else
-                {
-                     ROS_INFO("Have processed %d positions. Need to collect patterns in the next position?", posNo + 1);
-                }
-                ROS_INFO("-----If yes, please change the position or change the rosbag, then press 'Y' and 'ENTER'!");
-                ROS_INFO("-----If no, please press 'N' and 'ENTER' to quit the process!");
-                char key;
-                cin >> key;
-                if(key == 'Y' || key == 'y')
-                {
-                    ros::param::set("/pause_process", false);
-                    ROS_WARN("<<<<<<<<<<<< CHANGE POSITION <<<<<<<<<<<<");
-                    ROS_WARN("<<<<<<<<<<<< [COLLECT] READY? <<<<<<<<<<<<");
-                    ROS_INFO("----- If yes, please press 'Y' and 'ENTER'!");
-                    ROS_INFO("----- If want to quit, please press 'N' and 'ENTER'!");
-                    char key;
-                    cin >> key;
-                    if(key == 'Y' || key == 'y')
-                    {
-                        ROS_INFO("----- Continue...");
-                        t_process.tic();
-                    }
-                    else
-                    {
-                        ROS_WARN("<<<<<<<<<<<< END <<<<<<<<<<<<");
-                        ros::param::set("/end_process", true);
-                        break;
-                    }
+            ROS_INFO("Have processed %d positions. Need to collect patterns in the next position?", posNo);
+            ROS_WARN("<<<<<<<<<<<< CHANGE POSITION <<<<<<<<<<<<");
+            ROS_INFO("----- Continue...");
+            
+            pc_node.skip_current_step = false;
+            pc_node.final_saved_ = false;
+            pc_node.laser_end = false;
+            pc_node.cam_end = false;
+            pc_node.acc_cam_frame = 0;
+            pc_node.acc_laser_frame = 0;
+            pc_node.acc_cv_2d[0].clear();
+            pc_node.acc_cv_2d[1].clear();
+            pc_node.acc_cv_2d[2].clear();
+            pc_node.acc_cv_2d[3].clear();
+            pc_node.acc_cv[0].clear();
+            pc_node.acc_cv[1].clear();
+            pc_node.acc_cv[2].clear();
+            pc_node.acc_cv[3].clear();
+            pc_node.acc_lv[0].clear();
+            pc_node.acc_lv[1].clear();
+            pc_node.acc_lv[2].clear();
+            pc_node.acc_lv[3].clear();
+            pc_node.acc_laser_cloud_->clear();
+            pc_node.acc_camera_cloud_->clear();  
+            pc_node.timeout_ = false;
+            pc_node.enough_frames_detected_ = true;
+            pc_node.timer_started_ = false;
 
-                    // ros::param::set("bag_changed", true);
-                    if(!pc_node.skip_current_step)
-                    {
-                        posNo ++;
-                    }
-                    
-                    pc_node.skip_current_step = false;
-                    pc_node.final_saved = false;
-                    pc_node.acc_cam_frame = 0;
-                    pc_node.acc_cv_2d[0].clear();
-                    pc_node.acc_cv_2d[1].clear();
-                    pc_node.acc_cv_2d[2].clear();
-                    pc_node.acc_cv_2d[3].clear();
-                    pc_node.acc_cv[0].clear();
-                    pc_node.acc_cv[1].clear();
-                    pc_node.acc_cv[2].clear();
-                    pc_node.acc_cv[3].clear();
-                    pc_node.acc_lv[0].clear();
-                    pc_node.acc_lv[1].clear();
-                    pc_node.acc_lv[2].clear();
-                    pc_node.acc_lv[3].clear();
-                    pc_node.acc_laser_cloud->clear();
-                    pc_node.acc_camera_cloud->clear();  
-
-                    ros::param::set("/do_acc_boards", true);
-                }  
-                // else if(key == 'n' || key == 'N')
-                else
-                {
-                    ROS_WARN("<<<<<<<<<<<< END <<<<<<<<<<<<");
-                    ros::param::set("/end_process", true);
-                    break;
-                }
-            }   
+            // else if(key == 'n' || key == 'N')
+            if(pc_node.latest_calib_msg_.calib_status == pc_node.latest_calib_msg_.SCAN_COMPLETE)
+            {
+                ROS_WARN("<<<<<<<<<<<< SCAN COMPLETE <<<<<<<<<<<<");
+                ros::param::set("/end_process", true);
+                break;
+            }
+            else
+            {
+                ROS_WARN("PLC should request end of calibration / compute calibration value");
+            }
         }
+        if(pc_node.latest_calib_msg_.calib_status == pc_node.latest_calib_msg_.SCAN_COMPLETE)
+        {
+            ROS_WARN("<<<<<<<<<<<< SCAN COMPLETE <<<<<<<<<<<<");
+            ros::param::set("/end_process", true);
+            break;
+        }
+
+        if(!pc_node.use_centroid_laser_)
+            ros::param::set("/do_acc_boards", true);
+        else
+            ros::param::set("/do_acc_boards", false);
+        ros::spinOnce();
+        loop_rate.sleep();
     }
-    else
-    {
-        ROS_WARN("<<<<<<<<<<<< END <<<<<<<<<<<<");
-        ros::param::set("/end_process", true);
-    }
+    
     ROS_WARN("Features saved in:\n%s\n%s", pc_node.os_final.str().c_str(), pc_node.os_final_realtime.str().c_str());
 
     ros::shutdown();

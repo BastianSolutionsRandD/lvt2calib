@@ -1,9 +1,9 @@
 <launch>
     <!-- the number of frames accumulated to do the calibration, default:60 -->
-    <arg name="ns_s1" default="laser"/>
-    <arg name="ns_s2" default="camera"/>
-    <arg name="max_frame" default="60"/>
-    <arg name="l2c_calib" default="false"/>
+    <arg name="ns_s1" default="depth_camera"/>
+    <arg name="ns_s2" default="rgb"/>
+    <arg name="max_frame" default="20"/>
+    <arg name="l2c_calib" default="true"/>
     <arg name="l2l_calib" default="false"/>
     <arg name="rgb_camera_name" default="vmpr"/>
     <arg name="depth_camera_name" default="vmpr"/>

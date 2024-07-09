@@ -334,6 +334,17 @@ target_link_libraries(extrinsic_calib_l2l
   ${CERES_LIBRARIES}
 )
 
+add_executable(pc_transform src/utils/pc_transform.cpp)
+add_dependencies(pc_transform
+  ${catkin_EXPORTED_TARGETS}
+)
+target_link_libraries(pc_transform
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  ${PCL_LIBRARIES}
+  ${CERES_LIBRARIES}
+)
+
 #############
 ## Install ##
 #############

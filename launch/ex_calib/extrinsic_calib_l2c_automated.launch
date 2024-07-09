@@ -22,7 +22,7 @@
     <arg name="featureFileName" default="features_info_$(arg ns_l)_to_$(arg ns_c)"/>
     <arg name="calib_result_name" default="$(arg ns_l)_to_$(arg ns_c)"/>
 
-    <node pkg="lvt2calib" type="extrinsic_calib_l2c" name="extrinsic_calib_l2c" output="screen">
+    <node pkg="lvt2calib" type="extrinsic_calib_l2c_automated" name="extrinsic_calib_l2c_automated" output="screen">
         <param name="ns_l" value="$(arg ns_l)"/>
         <param name="ns_c" value="$(arg ns_c)"/>
 

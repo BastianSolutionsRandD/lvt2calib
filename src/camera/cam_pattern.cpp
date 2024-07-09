@@ -6,6 +6,7 @@
 #include <vector>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
+#include <sensor_msgs/CameraInfo.h>
 #include <image_transport/image_transport.h>
 #include <dynamic_reconfigure/server.h>
 
@@ -28,6 +29,7 @@
 #include "geometry_msgs/Point.h"
 
 #define DEBUG 0
+#define LOG_DETECTION 0
 
 using namespace std;
 using namespace cv;
@@ -42,12 +44,14 @@ ros::Publisher circle_image;
 ros::Publisher circle_center_pub, cumulative_pub;
 ros::Publisher cam_2d_circle_centers_pub;
 
+ros::Subscriber cam_info_sub;
+
 pcl::PointCloud<pcl::PointXYZ>::Ptr cumulative_cloud(new pcl::PointCloud<pcl::PointXYZ>);   // Accumulated centers
 
 // Parameters
 string image_tp_ = "";  // string image_tp_ = "/camera/left/image_rect_color";
 string ns_str = "";
-string camera_info_dir_ = "";
+string camera_info_topic_ = "";
 int threshold_value_ = 100;
 double blob_minCircularity_ = 0.8, blob_minInertiaRatio_ = 0.1, blob_minArea_ = 50;
 
@@ -64,6 +68,7 @@ bool is_gazebo = false;
 bool is_rgb = false;
 bool use_darkboard = false;
 bool use_morph = false;
+bool camera_info_received_ = false;
 
 string win_raw_img = "1.raw_image", win_undist_img = "2.undistorted_image", win_gray_img = "2.1 gray image", win_circle_img = "3.Draw circle centers on undistorted image"; 
 
@@ -168,15 +173,28 @@ void load_params()
     }
 
 
-    if(ros::param::get("~camera_info_dir", camera_info_dir_))
+    if(ros::param::get("~camera_info_topic", camera_info_topic_))
     {
-        ROS_INFO("Retrieved param 'camera_info_dir_': %s", camera_info_dir_.c_str());
-        std::ostringstream oss_CamIntrinsic;
-        oss_CamIntrinsic << camera_info_dir_;
-        ParameterReader pr_cam_intrinsic(oss_CamIntrinsic.str()); // ParameterReader is a class defined in "slamBase.h"
-        A = pr_cam_intrinsic.ReadMatFromTxt(pr_cam_intrinsic.getData("K"),3,3);
-        D = pr_cam_intrinsic.ReadMatFromTxt(pr_cam_intrinsic.getData("D"),1,5);
+        ROS_INFO("Retrieved param 'camera_info_topic': %s", camera_info_topic_.c_str());
     }
+}
+
+void cameraInfoCallback(const sensor_msgs::CameraInfo& msg)
+{
+    A = Mat::zeros(3, 3, CV_64FC1);
+
+    for(int ind = 0; ind < 9; ++ind)
+    {
+        A.at<double>(ind / 3, ind % 3) = msg.K[ind];
+    }
+
+    D = Mat::zeros(1, msg.D.size(), CV_64FC1);
+    for(size_t ind = 0; ind < msg.D.size(); ++ind)
+    {
+        D.at<double>(0, ind) = msg.D[ind];
+    }
+
+    camera_info_received_ = true;
 }
 
 cv::Mat homography_dlt(const std::vector< cv::Point2f > &x1, const std::vector< cv::Point2f > &x2)
@@ -289,10 +307,14 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
     images_proc_++;
     cv::Mat undistorted_image, gray;
     cv::undistort(original_image, undistorted_image, A, D, A);
-    namedWindow(win_raw_img);
-    cv::imshow(win_raw_img, original_image);
-    namedWindow(win_undist_img);
-    cv::imshow(win_undist_img, undistorted_image);
+
+    if(DEBUG)
+    {
+        cv::imshow(win_raw_img, original_image);
+        cv::imshow(win_undist_img, undistorted_image);
+        namedWindow(win_raw_img);
+        namedWindow(win_undist_img);
+    }
     cv::waitKey(1);
     cv::Mat image_copy;
     image_copy = undistorted_image.clone();
@@ -311,8 +333,11 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
         // to gray
         cv::Mat image_gray;
         cv::cvtColor(undistorted_image, image_gray, CV_RGB2GRAY);
-        namedWindow(win_gray_img);
-        imshow(win_gray_img, image_gray);
+        if(DEBUG)
+        {
+            namedWindow(win_gray_img);  
+            imshow(win_gray_img, image_gray);
+        }
 
         image_copy = image_gray;
 
@@ -339,8 +364,12 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
     {
         params.blobColor = 255;
     }
-   
-    ROS_INFO("[%s] Detecting circles......", ns_str.c_str());
+    
+    if(LOG_DETECTION)
+    {
+        ROS_INFO("[%s] Detecting circles......", ns_str.c_str());
+    }
+    
     #if CV_MAJOR_VERSION < 3   // If you are using OpenCV 2
     
         // Set up detector with params
@@ -359,7 +388,11 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
 
     if(found) 
     {
-        ROS_INFO("[%s] Find circles!", ns_str.c_str());
+        if(LOG_DETECTION)
+        {
+            ROS_INFO("[%s] Find circles!", ns_str.c_str());
+        }
+        
         //sort//
         sort(pointbuf.begin(), pointbuf.end(), order_Y);
         sort(pointbuf.begin(), pointbuf.begin() + 2, order_X);
@@ -370,8 +403,13 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
         }
 
         drawChessboardCorners( undistorted_image, boardSize, Mat(pointbuf), found ); 
-        namedWindow(win_circle_img);
-        imshow(win_circle_img, undistorted_image);
+
+        if(DEBUG)
+        {
+            namedWindow(win_circle_img);
+            imshow(win_circle_img, undistorted_image);
+        }
+
         cv::waitKey(10);
 
         sensor_msgs::ImagePtr circle_ros = cv_bridge::CvImage(std_msgs::Header(), "bgr8", undistorted_image).toImageMsg();
@@ -504,7 +542,11 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
 
         if(found_centers.size() >= min_centers_found_)
         {
-            ROS_INFO("[%s] Enough centers: %d", ns_str.c_str(), found_centers.size());
+            if(LOG_DETECTION)
+            {
+                ROS_INFO("[%s] Enough centers: %d", ns_str.c_str(), found_centers.size());
+            }
+            
             for (auto it = found_centers.begin(); it < found_centers.end(); ++it)
             {
                 pcl::PointXYZ center;
@@ -580,11 +622,18 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
     }
 }
 
+
 void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
-     
-    ROS_INFO("[%s] Processing image...", ns_str.c_str());
+    if(!camera_info_received_)
+    {
+        ROS_WARN("Waiting for image info on topic %s", camera_info_topic_.c_str());
+    }
 
+    if(LOG_DETECTION)
+    {
+        ROS_INFO("[%s] Processing image...", ns_str.c_str());
+    }
     cv::Mat thermal_image;
     try
     {
@@ -626,6 +675,8 @@ int main(int argc, char* argv[])
     image_transport::ImageTransport it(nh);
     image_transport::Subscriber sub = it.subscribe(image_tp_, 1, imageCallback);
 
+    cam_info_sub = nh.subscribe(camera_info_topic_, 1, cameraInfoCallback);
+
     dynamic_reconfigure::Server<lvt2calib::CameraConfig> server;
     dynamic_reconfigure::Server<lvt2calib::CameraConfig>::CallbackType f;
     f = boost::bind(param_callback, _1, _2);
@@ -654,12 +705,19 @@ int main(int argc, char* argv[])
                 ros::param::get("/pause_process", pause_process);
             }
             ros::param::set("/cam_paused", false);
-            destroyWindow(win_circle_img);
-
+            try
+            {
+                destroyWindow(win_circle_img);
+            }
+            catch(std::exception& ex)
+            {
+                ROS_WARN("UNable to destroy window");
+            }
             if(end_process)
                 break;
             images_proc_ = 0;
             images_used_ = 0;
+            
         }
         else    
             ros::spinOnce();

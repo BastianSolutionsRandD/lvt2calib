@@ -1,23 +1,37 @@
 <launch>
 
-  <arg name="rgb_camera_name" default="vmpr"/>
-  <arg name="depth_camera_name" default="vmpr"/>
+  <arg name="rgb_camera_name" default="center"/>
+  <arg name="depth_camera_name" default="center"/>
+  <arg name="board_on_eoat" default="false" />
+  
+  <node type="rviz" name="rviz_$(arg depth_camera_name)" pkg="rviz" args="-d $(find lvt2calib)/rviz/$(arg depth_camera_name)_depth_camera_pattern.rviz" />
 
-  <!-- <include file="$(find lvt2calib)/launch/camera/rgb_cam_pattern.launch">
+
+  <include file="$(find lvt2calib)/launch/camera/rgb_cam_pattern.launch">
     <arg name="rgb_camera_name" value="$(arg rgb_camera_name)"/>
-  </include> -->
+  </include>
 
-  <!-- <include file="$(find lvt2calib)/launch/lidar/depth_camera_livox_pattern.launch">
+  <include file="$(find lvt2calib)/launch/lidar/depth_camera_livox_pattern.launch" unless="$(arg board_on_eoat)">
     <arg name="depth_camera_name" value="$(arg depth_camera_name)"/>
-  </include> -->
+  </include>
+
+  <include file="$(find lvt2calib)/launch/lidar/depth_camera_livox_pattern_automated.launch" if="$(arg board_on_eoat)">
+    <arg name="depth_camera_name" value="$(arg depth_camera_name)"/>
+  </include>
 
   <include file="$(find lvt2calib)/launch/pattern_collection/pattern_collection.launch">
     <arg name="l2c_calib" value="true"/>
-    <arg name="max_frame" value="20"/>
+    <arg name="max_frame" value="30"/>
     <arg name="ns_s1" value="depth_camera"/>
     <arg name="ns_s2" value="rgb"/>
     <arg name="rgb_camera_name" value="$(arg rgb_camera_name)"/>
     <arg name="depth_camera_name"  value="$(arg depth_camera_name)"/>
+  </include>
+
+
+  <include file="$(find lvt2calib)/launch/ex_calib/extrinsic_calib_l2c_automated.launch">
+    <arg name="camera_name" value="$(arg depth_camera_name)"/>
+    <arg name="is_auto_mode" default="true"/>
   </include>
 
 </launch>

@@ -67,6 +67,7 @@
   <build_depend>cmake_modules</build_depend>
   <build_depend>message_generation</build_depend>
   <build_depend>ultra_msgs</build_depend>
+  <build_depend>nodelet</build_depend>
 
   <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>rospy</build_export_depend>
@@ -105,6 +106,7 @@
   <exec_depend>cmake_modules</exec_depend>
   <exec_depend>message_runtime</exec_depend>
   <exec_depend>ultra_msgs</exec_depend>
+  <exec_depend>nodelet</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

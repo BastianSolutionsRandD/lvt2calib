@@ -3,6 +3,7 @@
 
 #define PCL_NO_RECOMPILE
 #define DEBUG 0
+#define LOG_DETECTION 0
 // #define STATIC_ANALYSE 1
 
 #include <string>
@@ -263,7 +264,11 @@ bool FourCircleCenters::FindFourCenters(pcl::PointCloud<pcl::PointXYZI>::Ptr &ca
             }
         }
         find_centers = true;
-        ROS_INFO("[Laser] Found enough centers");
+        if(LOG_DETECTION)
+        {
+            ROS_INFO("[Laser] Found enough centers");
+        }
+
     }else{
         ROS_WARN("[Laser] Not enough centers: %ld", found_centers.size());
 

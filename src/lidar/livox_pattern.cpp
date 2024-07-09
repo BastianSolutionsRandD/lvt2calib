@@ -40,6 +40,8 @@
 
 #define DEBUG 0
 
+#define LOG_DETECTION 0
+
 using namespace std;
 using namespace sensor_msgs;
 using namespace pcl;
@@ -98,7 +100,11 @@ void param_callback(lvt2calib::LaserConfig &config, uint32_t level);
 
 void callback(const PointCloud2::ConstPtr& laser_cloud)
 {
-    ROS_INFO("[%s] Processing cloud...", ns_str.c_str());
+    
+    if(LOG_DETECTION)
+    {
+        ROS_INFO("[%s] Processing cloud...", ns_str.c_str());
+    }
     CloudType::Ptr cloud_in (new CloudType),        // Origin Point Cloud
 										calib_board (new CloudType),		// calib board pc
                                         calib_board_registed (new CloudType),calib_boundary (new CloudType),
@@ -145,7 +151,10 @@ void callback(const PointCloud2::ConstPtr& laser_cloud)
     // if(calib_board->points.size() > 0)
     if(ifDetected)
     {
-        ROS_WARN("<<<<<< [%s] Have found the calib board point cloud!!!", ns_str.c_str());
+        if(LOG_DETECTION)
+        {
+            ROS_WARN("<<<<<< [%s] Have found the calib board point cloud!!!", ns_str.c_str());
+        }
         publishPC<PointType>(calib_board_pub, cloud_header, calib_board);    // topic: /livox_pattern/calib_board_cloud
 
         // ROS_WARN("<<<<<<< calib_board->points.size() > 0");
@@ -154,7 +163,11 @@ void callback(const PointCloud2::ConstPtr& laser_cloud)
         if(doAccBoards)
         {
             acc_board_num++;
-            ROS_WARN("<<<<<< [%s] Accumalated %d frames of board cloud..........", ns_str.c_str(), acc_board_num);
+            if(LOG_DETECTION)
+            {
+                ROS_WARN("<<<<<< [%s] Accumulated %d frames of board cloud..........", ns_str.c_str(), acc_board_num);
+            }
+
             *acc_boards += *calib_board;
             
             CloudType::Ptr voxel_filtered(new CloudType);
@@ -234,8 +247,10 @@ void callback(const PointCloud2::ConstPtr& laser_cloud)
                 // bool find_centers = myFourCenters.FindFourCenters(acc_calib_boundary, four_circle_centers, Eigen::Matrix4f::Identity());
 
                 if(find_centers) board_used_num++;
-                ROS_WARN("<<<<<< [%s] board used num = %d", ns_str.c_str(), board_used_num);
-
+                if(LOG_DETECTION)
+                {
+                    ROS_WARN("<<<<<< [%s] board used num = %d", ns_str.c_str(), board_used_num);
+                }
                 sensor_msgs::PointCloud2 four_center_ros;
                 pcl::toROSMsg(*four_circle_centers, four_center_ros);
                 four_center_ros.header = laser_cloud->header;
@@ -249,7 +264,11 @@ void callback(const PointCloud2::ConstPtr& laser_cloud)
                 to_send.cloud = four_center_ros;
                 centers_pub.publish(to_send);       // Topic: /livox_pattern/centers_tosend
 
-                ROS_INFO("Pattern centers published");
+                
+                if(LOG_DETECTION)
+                {
+                    ROS_INFO("Pattern centers published");
+                }
             }
             else
             {

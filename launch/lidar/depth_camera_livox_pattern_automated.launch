@@ -12,7 +12,6 @@
 
   <arg name="stdout" default="screen"/>
   <arg name="cloud_tp" default="/$(arg depth_camera_name)_camera_depth/points"/>
-  <!-- <arg name="cloud_tp" default="/sick_visionary_t_mini/points"/> -->
   <arg name="use_RG_Pseg" default="false"/>
   <arg name="use_passthrough_preprocess" default="true"/>
   <arg name="ns_" default="depth_camera"/>
@@ -21,8 +20,7 @@
   <arg name="rmse_tpl2ukn_thre" default="0.03"/>
 
   <arg name="source_frame" default="$(arg depth_camera_name)_camera_depth_optical_frame"/>
-  <!-- <arg name="source_frame" default="sick_visionary_t_mini_depth_optical_frame"/> -->
-  <arg name="target_frame" default="base_link"/>
+  <arg name="target_frame" default="eoat"/>
 
   <group ns="$(arg ns_)">
     <group if="$(arg use_passthrough_preprocess)">
@@ -41,8 +39,8 @@
         <remap from="~output" to="$(arg cloud_tp)/x_filtered" />
         <rosparam>
           filter_field_name: x
-          filter_limit_min: 4.3
-          filter_limit_max: 7.0
+          filter_limit_min: -0.1
+          filter_limit_max: 0.2
           filter_limit_negative: False
           max_queue_size: 1
           keep_organized: False
@@ -54,8 +52,8 @@
         <remap from="~output" to="$(arg cloud_tp)/y_filtered" />
         <rosparam>
           filter_field_name: y
-          filter_limit_min: -1.15
-          filter_limit_max: 1.3
+          filter_limit_min: -0.48
+          filter_limit_max: 0.42
 
           filter_limit_negative: False
           max_queue_size: 1
@@ -68,8 +66,8 @@
         <remap from="~output" to="$(arg cloud_tp)/z_filtered" />
         <rosparam>
           filter_field_name: z
-          filter_limit_min: 0.3
-          filter_limit_max: 1.8
+          filter_limit_min: 0.13
+          filter_limit_max: 0.8
 
           filter_limit_negative: False
           max_queue_size: 1

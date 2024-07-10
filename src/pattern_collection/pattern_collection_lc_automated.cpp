@@ -605,6 +605,15 @@ public:
 
         cur_calib_msg_ = latest_calib_msg_;
 
+        // File handle
+        if((cur_calib_msg_.calib_status == cur_calib_msg_.MOVING || 
+           cur_calib_msg_.calib_status == cur_calib_msg_.AT_POSITION)
+           && receiving_positions_)
+        {
+            fileHandle();
+            receiving_positions_ = false;
+        }
+
         if(cur_calib_msg_.calib_status == cur_calib_msg_.MOVING)
         {
             ultra_msgs::CameraCalibrationFeedback calib_feedback_msg;
@@ -737,6 +746,7 @@ public:
 
     bool use_centroid_laser_ = false;
     bool save_final_data_ = false;
+    bool receiving_positions_ = true;
 
     bool laser_received_, camera_received_, cam_2d_received_;
     bool laser_end = false, cam_end = false, final_saved_ = false, skip_current_step = false;
@@ -767,14 +777,10 @@ int main(int argc, char **argv)
 
     PatternCollectionNode pc_node;
 
-    ROS_INFO("Initialized!");
     int posNo = 0;
     ros::Rate loop_rate(30);
    
     double Process_time_ = 0.0;
-
-    ROS_INFO("----- Continue..."); 
-    pc_node.fileHandle();
 
     while(ros::ok())
     {

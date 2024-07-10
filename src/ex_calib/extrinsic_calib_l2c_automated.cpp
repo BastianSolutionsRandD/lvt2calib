@@ -224,8 +224,9 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
     publishTransformedTF(cloud_frame_id, "test_depth", cloud_mount_link_frame_id, "test_depth_mount_link");
     tfError(cloud_frame_id, image_frame_id, "test_depth", image_frame_id);
     
-    // publishTf(cloud_frame_id, "test_camera", Tr_s2l_centroid_min_3d);
-    // tfError(image_frame_id, cloud_frame_id, "test_camera", cloud_frame_id);
+    publishTf(cloud_frame_id, "test_camera", Tr_s2l_centroid_min_3d);
+    publishTransformedTF(image_frame_id, "test_camera", image_mount_link_frame_id, "test_camera_mount_link");
+    tfError(image_frame_id, cloud_frame_id, "test_camera", cloud_frame_id);
 
     // Get final transform from velo to camera (using centroid to do calibration)
     Eigen::Matrix4d Tr_s2c_centroid, Tr_l2c_centroid_min3d;

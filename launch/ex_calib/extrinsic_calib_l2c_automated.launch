@@ -6,7 +6,7 @@
 
     <arg name="is_multi_exp" default="false"/>
     <arg name="is_auto_mode" default="false"/>
-	<arg name="camera_info_topic" default="$(arg camera_name)_camera_color/camera_info"/>
+	<arg name="camera_info_topic" default="/$(arg camera_name)_camera_color/camera_info"/>
     <arg name="ns_l" default="depth_camera"/>
     <arg name="ns_c" default="rgb"/>
 

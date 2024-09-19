@@ -582,7 +582,7 @@ int main(int argc, char **argv){
   while(ros::ok())
   {
     // ros::param::get("/pause_process", pause_process);
-    ros::param::get("/end_process", end_process);
+    ros::param::get("/rgb_depth_calibration/end_process", end_process);
     ros::param::get("/do_acc_boards", do_acc_boards);
     if(end_process)
     {
@@ -595,7 +595,7 @@ int main(int argc, char **argv){
       while (!do_acc_boards && ros::ok())
       {
         // ros::param::get("/pause_process", pause_process);
-        ros::param::get("/end_process", end_process);
+        ros::param::get("/rgb_depth_calibration/end_process", end_process);
         ros::param::get("/do_acc_boards", do_acc_boards);
         if(end_process)
         {

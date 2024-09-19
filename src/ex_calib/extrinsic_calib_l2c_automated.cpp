@@ -26,6 +26,8 @@
 
 #include <ultra_msgs/CameraCalibrationFeedback.h>
 #include <ultra_msgs/CameraCalibrationStatus.h>
+#include <commissioning_tools/CalibrationUpdate.h>
+#include <commissioning_tools/CalibrationResult.h>
 
 #define DEBUG 0
 
@@ -42,6 +44,7 @@ cv::Mat cameraMatrix_ = Mat_<double>(3,3);
 
 bool save_calib_file = false, is_multi_exp = false;
 bool is_auto_mode = false;
+std::string calibration_topic_;
 std::string image_frame_id, cloud_frame_id, image_mount_link_frame_id, cloud_mount_link_frame_id;
 vector<pcl::PointXYZ> lv_3d_for_reproj;
 std::vector<cv::Point2f> lv_2d_projected, lv_2d_projected_min2d, lv_2d_projected_min3d,
@@ -53,11 +56,12 @@ list<int> sample_sequence;
 
 lvt2Calib mycalib(L2C_CALIB);
 
-tf2_ros::Buffer tfBuffer;
+tf2_ros::Buffer tfBuffer_;
 
 bool calib_msg_updated_ = false;
 bool start_calib_ = false;
 bool run_once_ = true;
+bool published_fbk = false;
 bool camera_info_received_ = false;
 
 ros::Timer timer_;
@@ -67,35 +71,9 @@ ultra_msgs::CameraCalibrationStatus latest_calib_msg_;
 
 ros::Subscriber calib_status_sub_;
 
-// double calculateRADerr(double alpha_, double alpha_gt_)
-// {
-//     double delta = alpha_ - alpha_gt_;
-//     double delta_ = (delta > M_PI)?(delta - M_PI * 2.0):((delta < -M_PI)?(delta + M_PI * 2.0):delta);
+ros::Publisher calib_result_pub_;
 
-//     return delta_;
-// }
-
-// std::vector<double> calculateTransErr(std::vector<double> ground_truth_, std::vector<double> detected_)
-// {
-//     double err_tx_ = 0, err_ty_ = 0, err_tz_ = 0, err_total = 0;
-
-//     err_tx_ = sqrt(pow(detected_[0]-ground_truth_[0], 2));
-//     err_ty_ = sqrt(pow(detected_[1]-ground_truth_[1], 2));
-//     err_tz_ = sqrt(pow(detected_[2]-ground_truth_[2], 2));
-//     err_total = sqrt(pow(err_tx_, 2) + pow(err_ty_, 2) + pow(err_tz_, 2));
-
-//     std::vector<double> err = {err_tx_, err_ty_, err_tz_, err_total};
-//     return err;
-// }
-
-// double calculateAngularErr(Eigen::Matrix3f ground_truth_, Eigen::Matrix3f detected_)
-// {
-//     Eigen::Matrix3d m = (detected_.transpose() * ground_truth_).cast<double>();
-//     double TR = m.trace();
-//     double temp = (TR - 1) / 2.0;
-//     double err = acos((temp < -1)?-1:((temp > 1)?1:temp));
-//     return err;
-// }
+ros::Time start_time_;
 
 void tfError(string source_frame1, string target_frame1, string source_frame2, string target_frame2)
 {
@@ -105,8 +83,8 @@ void tfError(string source_frame1, string target_frame1, string source_frame2, s
 
     try 
     {
-        transformStamped1 = tfBuffer.lookupTransform(target_frame1, source_frame1, ros::Time(0), ros::Duration(1.0));
-        transformStamped2 = tfBuffer.lookupTransform(target_frame2, source_frame2, ros::Time(0), ros::Duration(1.0));
+        transformStamped1 = tfBuffer_.lookupTransform(target_frame1, source_frame1, ros::Time(0), ros::Duration(1.0));
+        transformStamped2 = tfBuffer_.lookupTransform(target_frame2, source_frame2, ros::Time(0), ros::Duration(1.0));
         
     } 
     catch (tf2::TransformException& ex) 
@@ -137,6 +115,56 @@ void tfError(string source_frame1, string target_frame1, string source_frame2, s
     double temp = (TR - 1) / 2.0;
     double trace_err = acos((temp < -1)?-1:((temp > 1)?1:temp));
     std::cout << "Trace based angular error between " << source_frame1 << " and " << source_frame2 << " is " << trace_err << " degrees" << std::endl;
+}
+
+bool compareTransforms(const geometry_msgs::TransformStamped& transform1, 
+                                   const geometry_msgs::TransformStamped& transform2, 
+                                   const geometry_msgs::TransformStamped& error_margin)
+{
+    bool error_within_margin = true;
+    // Compare translation components
+    if (std::fabs(transform1.transform.translation.x - transform2.transform.translation.x) > error_margin.transform.translation.x ||
+        std::fabs(transform1.transform.translation.y - transform2.transform.translation.y) > error_margin.transform.translation.y ||
+        std::fabs(transform1.transform.translation.z - transform2.transform.translation.z) > error_margin.transform.translation.z) {
+        
+        ROS_WARN("Calculated  Translation | Stored Translation");
+        ROS_WARN("    x_cal: %f, x_stored: %f, x_margin: %f", transform1.transform.translation.x, transform2.transform.translation.x, error_margin.transform.translation.x);
+        ROS_WARN("    y_cal: %f, y_stored: %f, y_margin: %f", transform1.transform.translation.y, transform2.transform.translation.y, error_margin.transform.translation.y);
+        ROS_WARN("    z_cal: %f, z_stored: %f, z_margin: %f", transform1.transform.translation.z, transform2.transform.translation.z, error_margin.transform.translation.z);
+
+        error_within_margin = false;
+    }
+
+    // Compare rotation components (quaternion)
+    double r1, p1, y1, r2, p2, y2, r_error, p_error, y_error;
+    
+    tf::Quaternion tf_quat1(transform1.transform.rotation.x, transform1.transform.rotation.y, transform1.transform.rotation.z, transform1.transform.rotation.w);
+    tf::Matrix3x3 m1(tf_quat1);
+    m1.getRPY(r1, p1, y1);
+
+    tf::Quaternion tf_quat2(transform2.transform.rotation.x, transform2.transform.rotation.y, transform2.transform.rotation.z, transform2.transform.rotation.w);
+    tf::Matrix3x3 m2(tf_quat2);
+    m2.getRPY(r2, p2, y2);
+
+    tf::Quaternion tf_quat_error(error_margin.transform.rotation.x, error_margin.transform.rotation.y, error_margin.transform.rotation.z, error_margin.transform.rotation.w);
+    tf::Matrix3x3 m3(tf_quat_error);
+    m3.getRPY(r_error, p_error, y_error);
+
+
+    if (std::fabs(r1-r2) > r_error ||
+        std::fabs(p1-p2) > p_error ||
+        std::fabs(y1-y2) > y_error)
+    {
+        
+        ROS_WARN("Calculated  Rotation | Stored Rotation | Error margin");
+        ROS_WARN("    roll calculated: %f, roll stored: %f, roll margin: %f", r1, r2, r_error);
+        ROS_WARN("    pitch calculated: %f, pitch stored: %f, pitch margin: %f", p1, p2, p_error);
+        ROS_WARN("    yaw calculated: %f, yaw stored: %f, yaw margin: %f", y1, y2, y_error);
+
+        error_within_margin = false;
+    }
+
+    return error_within_margin;
 }
 
 void publishTf(string base_frame, string child_frame, Eigen::Matrix4d& transform)
@@ -191,8 +219,8 @@ void publishTransformedTF(string frame1, string frame2, string base_frame, strin
 
     try 
     {
-        transformStamped = tfBuffer.lookupTransform(frame1, frame2, ros::Time(0), ros::Duration(1.0));
-        mount_optical_tf = tfBuffer.lookupTransform(frame1, base_frame, ros::Time(0), ros::Duration(1.0));
+        transformStamped = tfBuffer_.lookupTransform(frame1, frame2, ros::Time(0), ros::Duration(1.0));
+        mount_optical_tf = tfBuffer_.lookupTransform(frame1, base_frame, ros::Time(0), ros::Duration(1.0));
         swap_tf = transformStamped;
     } 
     catch (tf2::TransformException& ex) 
@@ -220,13 +248,22 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
     Eigen:: Matrix4d Tr_s2l_centroid_min_3d = mycalib.ExtCalib3D(laser_cloud, camera_cloud);
     Eigen::Matrix4d Tr_l2s_centroid = Tr_s2l_centroid_min_3d.inverse();
 
-    publishTf(image_frame_id, "test_depth", Tr_l2s_centroid);
-    publishTransformedTF(cloud_frame_id, "test_depth", cloud_mount_link_frame_id, "test_depth_mount_link");
-    tfError(cloud_frame_id, image_frame_id, "test_depth", image_frame_id);
+    // publishTf(image_frame_id, "test_depth", Tr_l2s_centroid);
+    // publishTransformedTF(cloud_frame_id, "test_depth", cloud_mount_link_frame_id, "test_depth_mount_link");
+    // tfError(cloud_frame_id, image_frame_id, "test_depth", image_frame_id);
     
+
     publishTf(cloud_frame_id, "test_camera", Tr_s2l_centroid_min_3d);
     publishTransformedTF(image_frame_id, "test_camera", image_mount_link_frame_id, "test_camera_mount_link");
     tfError(image_frame_id, cloud_frame_id, "test_camera", cloud_frame_id);
+
+    commissioning_tools::CalibrationUpdate calib_update_msg;
+    calib_update_msg.original = tfBuffer_.lookupTransform(image_mount_link_frame_id, cloud_mount_link_frame_id, ros::Time(0), ros::Duration(1.0));
+    calib_update_msg.calibrated = tfBuffer_.lookupTransform("test_camera_mount_link", cloud_mount_link_frame_id, ros::Time(0), ros::Duration(1.0));
+    calib_result_pub_.publish(calib_update_msg);
+
+    // std::string depth_mount_link_frame_id = "center_camera_helios2_mount_link";
+    // publishTransformedTF(depth_mount_link_frame_id, image_mount_link_frame_id, "test_camera_mount_link", "test_depth_mount_link");
 
     // Get final transform from velo to camera (using centroid to do calibration)
     Eigen::Matrix4d Tr_s2c_centroid, Tr_l2c_centroid_min3d;
@@ -260,49 +297,50 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
     mycalib.transf_3d.setOrigin(origin_3d);
     mycalib.transf_3d.setRotation(tfqt_3d);
 
-    cout << "<<<<< 2.2 calibration via min2D " << endl;
-    Eigen::Matrix4d Tr_l2c_centroid_min2d = mycalib.ExtCalib2D(laser_cloud, cam_2d_sorted, Tr_l2c_centroid_min3d);
-    cout << "Tr_laser_to_cam_min_2d = " << "\n" << Tr_l2c_centroid_min2d << endl;
+    // cout << "<<<<< 2.2 calibration via min2D " << endl;
+    // Eigen::Matrix4d Tr_l2c_centroid_min2d = mycalib.ExtCalib2D(laser_cloud, cam_2d_sorted, Tr_l2c_centroid_min3d);
+    // cout << "Tr_laser_to_cam_min_2d = " << "\n" << Tr_l2c_centroid_min2d << endl;
 
-    // transfer to TF
-    std::vector<double> calib_result_6dof_min2d = eigenMatrix2SixDOF(Tr_l2c_centroid_min2d);
-    cout << "x, y, z, roll, pitch, yaw = " << endl;
-    for(std::vector<double>::iterator it=calib_result_6dof_min2d.begin(); it<calib_result_6dof_min2d.end(); it++){
-        cout  << (*it) << endl;
-    } 
+    // // transfer to TF
+    // std::vector<double> calib_result_6dof_min2d = eigenMatrix2SixDOF(Tr_l2c_centroid_min2d);
+    // cout << "x, y, z, roll, pitch, yaw = " << endl;
+    // for(std::vector<double>::iterator it=calib_result_6dof_min2d.begin(); it<calib_result_6dof_min2d.end(); it++){
+    //     cout  << (*it) << endl;
+    // } 
 
-    tf::Matrix3x3 tf3d_2d;
-    tf3d_2d.setValue(Tr_l2c_centroid_min2d(0, 0), Tr_l2c_centroid_min2d(0, 1), Tr_l2c_centroid_min2d(0, 2),
-    Tr_l2c_centroid_min2d(1, 0), Tr_l2c_centroid_min2d(1, 1), Tr_l2c_centroid_min2d(1, 2),
-    Tr_l2c_centroid_min2d(2, 0), Tr_l2c_centroid_min2d(2, 1), Tr_l2c_centroid_min2d(2, 2));
+    // tf::Matrix3x3 tf3d_2d;
+    // tf3d_2d.setValue(Tr_l2c_centroid_min2d(0, 0), Tr_l2c_centroid_min2d(0, 1), Tr_l2c_centroid_min2d(0, 2),
+    // Tr_l2c_centroid_min2d(1, 0), Tr_l2c_centroid_min2d(1, 1), Tr_l2c_centroid_min2d(1, 2),
+    // Tr_l2c_centroid_min2d(2, 0), Tr_l2c_centroid_min2d(2, 1), Tr_l2c_centroid_min2d(2, 2));
     
-    tf::Quaternion tfqt_2d;
-    tf3d_2d.getRotation(tfqt_2d);
-    tf::Vector3 origin_2d;
-    origin_2d.setValue(Tr_l2c_centroid_min2d(0,3),Tr_l2c_centroid_min2d(1,3),Tr_l2c_centroid_min2d(2,3));
+    // tf::Quaternion tfqt_2d;
+    // tf3d_2d.getRotation(tfqt_2d);
+    // tf::Vector3 origin_2d;
+    // origin_2d.setValue(Tr_l2c_centroid_min2d(0,3),Tr_l2c_centroid_min2d(1,3),Tr_l2c_centroid_min2d(2,3));
 
-    mycalib.transf_2d.setOrigin(origin_2d);
-    mycalib.transf_2d.setRotation(tfqt_2d);
+    // mycalib.transf_2d.setOrigin(origin_2d);
+    // mycalib.transf_2d.setRotation(tfqt_2d);
 
     ROS_WARN("********** 3.0 calculate error **********"); 
-    Eigen::Matrix3d R_min3d, R_min2d;
+    // Eigen::Matrix3d R_min3d, R_min2d;
+    Eigen::Matrix3d R_min3d;
     R_min3d = Tr_l2c_centroid_min3d.block(0,0,3,3);
-    R_min2d = Tr_l2c_centroid_min2d.block(0,0,3,3);
+    // R_min2d = Tr_l2c_centroid_min2d.block(0,0,3,3);
 
     cout << "<<<<< 3.1 3D Matching Error" << endl;
     vector<double> align_err_min3d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2c_centroid_min3d);
-    vector<double> align_err_min2d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2c_centroid_min2d);
+    // vector<double> align_err_min2d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2c_centroid_min2d);
     cout << "min3d [rmse_x, rmse_y, rmse_z, rmse_total] = [";
     for(auto it : align_err_min3d) cout << it << " ";
     cout << "]" << endl;
-    cout << "min2d [rmse_x, rmse_y, rmse_z, rmse_total] = [";
-    for(auto it : align_err_min2d) cout << it << " ";
-    cout << "]" << endl;
+    // cout << "min2d [rmse_x, rmse_y, rmse_z, rmse_total] = [";
+    // for(auto it : align_err_min2d) cout << it << " ";
+    // cout << "]" << endl;
 
     cout << "<<<<< 3.1 2D Re-projection Error" << endl;
     // min3d
     cv::Mat Tr_l2c_min3d_cv;
-    eigen2cv(Tr_l2c_centroid_min2d, Tr_l2c_min3d_cv);
+    // eigen2cv(Tr_l2c_centroid_min2d, Tr_l2c_min3d_cv);
     lv_2d_projected_min3d.clear();
     projectVelo2Cam(mycalib.s1_cloud, cameraMatrix_, Tr_l2c_min3d_cv, lv_2d_projected_min3d);
     
@@ -311,16 +349,16 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
     for(auto it : rmse_2d_reproj_wt_centroid_min3d) cout << it << " ";
     cout << "]" << endl;
 
-    // min2d
-    cv::Mat Tr_l2c_min2d_cv;
-    eigen2cv(Tr_l2c_centroid_min2d, Tr_l2c_min2d_cv);
-    lv_2d_projected_min2d.clear();
-    projectVelo2Cam(mycalib.s1_cloud, cameraMatrix_, Tr_l2c_min2d_cv, lv_2d_projected_min2d);
+    // // min2d
+    // cv::Mat Tr_l2c_min2d_cv;
+    // eigen2cv(Tr_l2c_centroid_min2d, Tr_l2c_min2d_cv);
+    // lv_2d_projected_min2d.clear();
+    // projectVelo2Cam(mycalib.s1_cloud, cameraMatrix_, Tr_l2c_min2d_cv, lv_2d_projected_min2d);
 
-    std::vector<double> rmse_2d_reproj_wt_centroid_min2d = calculateRMSE(mycalib.cam_2d_points, lv_2d_projected_min2d);
-    cout << "min2d [rmse_2d_reproj_u, rmse_2d_reproj_v, rmse_2d_reproj_total] = \n[";
-    for(auto it : rmse_2d_reproj_wt_centroid_min2d) cout << it << " ";
-    cout << "]" << endl;
+    // std::vector<double> rmse_2d_reproj_wt_centroid_min2d = calculateRMSE(mycalib.cam_2d_points, lv_2d_projected_min2d);
+    // cout << "min2d [rmse_2d_reproj_u, rmse_2d_reproj_v, rmse_2d_reproj_total] = \n[";
+    // for(auto it : rmse_2d_reproj_wt_centroid_min2d) cout << it << " ";
+    // cout << "]" << endl;
     
     if(save_calib_file)
     {
@@ -337,15 +375,15 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
         savefile_calib_log << endl;
         savefile_calib_log.close();
 
-        savefile_calib_log.open(os_calibfile_log.str().c_str(), ios::out|ios::app);
-        cout << "<<<<<<<<<< opening file " << os_calibfile_log.str() << endl;
-        savefile_calib_log << currentDateTime() << "," << ref_ns+"_min2d" << "," << sample_sequence.size();
-        for(auto p : calib_result_6dof_min2d){  savefile_calib_log << "," << p;}
-        for(int p = 0; p < 9; p++){ savefile_calib_log << "," << R_min2d(p);}
-        for(auto p : align_err_min2d){ savefile_calib_log << "," << p;}
-        for(auto p : rmse_2d_reproj_wt_centroid_min2d){ savefile_calib_log << "," << p;}
-        savefile_calib_log << endl;
-        savefile_calib_log.close();
+        // savefile_calib_log.open(os_calibfile_log.str().c_str(), ios::out|ios::app);
+        // cout << "<<<<<<<<<< opening file " << os_calibfile_log.str() << endl;
+        // savefile_calib_log << currentDateTime() << "," << ref_ns+"_min2d" << "," << sample_sequence.size();
+        // for(auto p : calib_result_6dof_min2d){  savefile_calib_log << "," << p;}
+        // for(int p = 0; p < 9; p++){ savefile_calib_log << "," << R_min2d(p);}
+        // for(auto p : align_err_min2d){ savefile_calib_log << "," << p;}
+        // for(auto p : rmse_2d_reproj_wt_centroid_min2d){ savefile_calib_log << "," << p;}
+        // savefile_calib_log << endl;
+        // savefile_calib_log.close();
         
         std::ofstream savefile_exparam;
         savefile_exparam.open(os_extrinsic_min3d.str().c_str(), ios::out);
@@ -361,18 +399,18 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
         }
         savefile_exparam.close();
 
-        savefile_exparam.open(os_extrinsic_min2d.str().c_str(), ios::out);
-        cout << "<<<<< opening file " << os_extrinsic_min2d.str() << endl;
-        savefile_exparam << "RT_" + ref_ns + "_min2d" << endl;
-        for(int i = 0; i < 4; i++)
-        {
-            for(int j = 0; j < 4; j++)
-            {                    
-                savefile_exparam << Tr_l2c_centroid_min2d(i,j) << ", ";
-            }
-            savefile_exparam << endl;
-        }
-        savefile_exparam.close();
+        // savefile_exparam.open(os_extrinsic_min2d.str().c_str(), ios::out);
+        // cout << "<<<<< opening file " << os_extrinsic_min2d.str() << endl;
+        // savefile_exparam << "RT_" + ref_ns + "_min2d" << endl;
+        // for(int i = 0; i < 4; i++)
+        // {
+        //     for(int j = 0; j < 4; j++)
+        //     {                    
+        //         savefile_exparam << Tr_l2c_centroid_min2d(i,j) << ", ";
+        //     }
+        //     savefile_exparam << endl;
+        // }
+        // savefile_exparam.close();
 
         ROS_WARN("<<<<< calibration result saved!!!");
     }
@@ -460,7 +498,7 @@ void fileHandle()
 }
 
 
-void timerCallback(const ros::TimerEvent& event) 
+bool timerCallback() 
 {
     if(cur_calib_msg_.calib_status != latest_calib_msg_.calib_status) 
     {
@@ -473,10 +511,16 @@ void timerCallback(const ros::TimerEvent& event)
 
     cur_calib_msg_ = latest_calib_msg_;
 
-    ros::param::get("/end_process", start_calib_);
-    if (start_calib_ && run_once_ && camera_info_received_) 
+    ros::param::get("/rgb_depth_calibration/end_process", start_calib_);
+
+    if(start_calib_ && run_once_)
     {
-        run_once_ = false;
+        start_time_ = ros::Time::now();
+    }
+
+    if (start_calib_ && !published_fbk && camera_info_received_) 
+    {
+        published_fbk = true;
 
         ROS_INFO("Scan complete! Calculating calibration transform...");
 
@@ -502,9 +546,30 @@ void timerCallback(const ros::TimerEvent& event)
             }
         }
 
-        // ros::shutdown();
+        return false;
         
     }
+    else if(start_calib_ && !camera_info_received_ && !published_fbk)
+    {
+        ros::Time current_time = ros::Time::now();
+        ros::Duration elapsed_time = current_time - start_time_;
+        if (elapsed_time.toSec() < 3.0)
+        {
+            ROS_WARN_THROTTLE(1.0, "Camera info not received!");
+            run_once_ = false;
+            return true;
+        }
+
+        published_fbk = true;
+
+        commissioning_tools::CalibrationUpdate calib_update_msg;
+        calib_update_msg.result.result = calib_update_msg.result.REJECTED;
+        calib_result_pub_.publish(calib_update_msg);
+
+        return false;
+    }
+
+    return true;
 }
 
 void triggerCallback(const ultra_msgs::CameraCalibrationStatus& msg) 
@@ -522,39 +587,92 @@ void cameraInfoCallback(const sensor_msgs::CameraInfo& msg)
     camera_info_received_ = true;
 }
 
+geometry_msgs::TransformStamped loadDefaultTf(std::string prefix, bool is_rad, ros::NodeHandle nh) {
+
+    geometry_msgs::TransformStamped transform;
+    // Load translation
+    nh.param(prefix + "/x", transform.transform.translation.x, 0.0);
+    nh.param(prefix + "/y", transform.transform.translation.y, 0.0);
+    nh.param(prefix + "/z", transform.transform.translation.z, 0.0);
+
+    // Load rotation in roll, pitch, yaw and convert to quaternion
+    double roll, pitch, yaw;
+    nh.param(prefix + "/roll", roll, 0.0);
+    nh.param(prefix + "/pitch", pitch, 0.0);
+    nh.param(prefix + "/yaw", yaw, 0.0);
+
+    tf2::Quaternion quat;
+    if(is_rad)
+    {
+        quat.setRPY(roll, pitch, yaw);
+    }
+    else
+    {
+        quat.setRPY(roll * (M_PI / 180), pitch * (M_PI / 180), yaw * (M_PI / 180));
+    }
+
+    transform.transform.rotation.x = quat.x();
+    transform.transform.rotation.y = quat.y();
+    transform.transform.rotation.z = quat.z();
+    transform.transform.rotation.w = quat.w();
+
+    // Optionally set the frame ids
+    transform.header.frame_id = image_mount_link_frame_id;
+    transform.child_frame_id = cloud_mount_link_frame_id;
+
+    return transform;
+}
+
+
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "extrinsic_calib_l2c");
-    ros::NodeHandle nh_("~");
+    ros::init(argc, argv, "extrinsic_calib_l2c_automated");
+    ros::NodeHandle nh("~");
 
     int update_rate;
 
     // Transform listener
-    tf2_ros::TransformListener tfListener(tfBuffer);
+    tf2_ros::TransformListener tfListener(tfBuffer_);
 
-    nh_.param<string>("calib_result_dir_", calib_result_dir_, "");
-    nh_.param<string>("camera_info_topic_", camera_info_topic_, "");
-    nh_.param<string>("features_info_dir_", features_info_dir_, "");
-    nh_.param<string>("calib_result_name_", calib_result_name_, "");
-    nh_.param<string>("ns_l", ns_l, "laser");
-    nh_.param<string>("ns_c", ns_c, "cam");
-    nh_.param("save_calib_file", save_calib_file, false);
-    nh_.param("is_multi_exp", is_multi_exp, false);
-    nh_.param("is_auto_mode", is_auto_mode, false);
-    nh_.param<string>("image_frame_id", image_frame_id, "");
-    nh_.param<string>("cloud_frame_id", cloud_frame_id, "");
-    nh_.param<string>("image_mount_link_frame_id", image_mount_link_frame_id, "");
-    nh_.param<string>("cloud_mount_link_frame_id", cloud_mount_link_frame_id, "");
-    nh_.param<int>("update_rate", update_rate, 30);
+    nh.param<string>("calib_result_dir_", calib_result_dir_, "");
+    nh.param<string>("camera_info_topic_", camera_info_topic_, "");
+    nh.param<string>("features_info_dir_", features_info_dir_, "");
+    nh.param<string>("calib_result_name_", calib_result_name_, "");
+    nh.param<string>("ns_l", ns_l, "laser");
+    nh.param<string>("ns_c", ns_c, "cam");
+    nh.param<bool>("save_calib_file", save_calib_file, false);
+    nh.param<bool>("is_multi_exp", is_multi_exp, false);
+    nh.param<bool>("is_auto_mode", is_auto_mode, false);
+    nh.param<std::string>("calibration_topic", calibration_topic_, "");
+    nh.param<string>("image_frame_id", image_frame_id, "");
+    nh.param<string>("cloud_frame_id", cloud_frame_id, "");
+    nh.param<string>("image_mount_link_frame_id", image_mount_link_frame_id, "");
+    nh.param<string>("cloud_mount_link_frame_id", cloud_mount_link_frame_id, "");
+    nh.param<int>("update_rate", update_rate, 30);
 
-    ros::Subscriber camera_info_sub = nh_.subscribe(camera_info_topic_, 1, cameraInfoCallback);
+    ros::Subscriber camera_info_sub = nh.subscribe(camera_info_topic_, 1, cameraInfoCallback);
+
+    calib_result_pub_ =  nh.advertise<commissioning_tools::CalibrationUpdate>("calibration_update", 1);
 
     ref_ns = ns_l + "_to_" + ns_c;
     os_in_ << features_info_dir_;
 
-    timer_ = nh_.createTimer(ros::Duration(1.0/update_rate),
-                            &timerCallback);
-    calib_status_sub_ = nh_.subscribe("camera_calibration_status", 10, &triggerCallback);
+    // timer_ = nh.createTimer(ros::Duration(1.0/update_rate),
+    //                         &timerCallback);
+    calib_status_sub_ = nh.subscribe("camera_calibration_status", 10, &triggerCallback);
 
-    ros::spin();
+    ros::Rate loop_rate(update_rate);
+    while(ros::ok())
+    {   
+        ros::spinOnce();
+        if(!timerCallback())
+        {
+            break;
+        }
+        loop_rate.sleep();
+    }
+
+    ros::shutdown();
+
+    return 0;
 }

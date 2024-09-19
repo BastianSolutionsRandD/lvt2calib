@@ -341,7 +341,7 @@ int main(int argc, char **argv)
     ros::Rate loop_rate(100);
     while(ros::ok())
     {
-        ros::param::get("/end_process", end_process);
+        ros::param::get("/rgb_depth_calibration/end_process", end_process);
         ros::param::get("/pause_process", pause_process);
         ros::param::get("/max_frame", max_acc_frame_);
         ros::param::get("/do_acc_boards", doAccBoards);
@@ -360,7 +360,7 @@ int main(int argc, char **argv)
             clouds_used_ = 0;
             while(pause_process && ros::ok())
             {
-                ros::param::get("/end_process", end_process);
+                ros::param::get("/rgb_depth_calibration/end_process", end_process);
                 ros::param::get("/pause_process", pause_process);
                 if(end_process)
                     break;

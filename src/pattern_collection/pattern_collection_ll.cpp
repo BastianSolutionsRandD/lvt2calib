@@ -435,7 +435,7 @@ int main(int argc, char **argv)
                     else
                     {
                         ROS_WARN("<<<<<<<<<<<< END <<<<<<<<<<<<");
-                        ros::param::set("/end_process", true);
+                        ros::param::set("/rgb_depth_calibration/end_process", true);
                         break;
                     }
 
@@ -460,7 +460,7 @@ int main(int argc, char **argv)
                 else
                 {
                     ROS_WARN("<<<<<<<<<<<< END <<<<<<<<<<<<");
-                    ros::param::set("/end_process", true);
+                    ros::param::set("/rgb_depth_calibration/end_process", true);
                     break;
                 }
             }   
@@ -469,7 +469,7 @@ int main(int argc, char **argv)
     else
     {
         ROS_WARN("<<<<<<<<<<<< END <<<<<<<<<<<<");
-        ros::param::set("/end_process", true);
+        ros::param::set("/rgb_depth_calibration/end_process", true);
     }
     ROS_WARN("Features saved in:\n%s\n%s", os_final.str().c_str(), os_final_realtime.str().c_str());
 

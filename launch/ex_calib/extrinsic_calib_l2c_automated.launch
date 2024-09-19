@@ -4,6 +4,8 @@
 
     <arg name="camera_name" default="vmpr"/>
 
+    <arg name="calibration_topic" default="test_calibration_topic"/>
+
     <arg name="is_multi_exp" default="false"/>
     <arg name="is_auto_mode" default="false"/>
 	<arg name="camera_info_topic" default="/$(arg camera_name)_camera_color/camera_info"/>
@@ -16,7 +18,7 @@
 
     <arg name="image_mount_link_frame_id" default="$(arg camera_name)_camera_triton_mount_link"/>
     <arg name="cloud_mount_link_frame_id" default="$(arg camera_name)_camera_helios2_mount_link"/>
-    <!-- <arg name="cloud_mount_link_frame_id" default="sick_visionary_t_mini_depth_mount_link"/> -->
+    <!-- <arg name="cloud_mount_link_frame_id" default="sick_visionary_t_mini_mount_link"/> -->
 
 
     <arg name="featureFileName" default="features_info_$(arg ns_l)_to_$(arg ns_c)"/>
@@ -35,6 +37,9 @@
         <param name="save_calib_file" value="true"/>
         <param name="is_multi_exp" value="$(arg is_multi_exp)"/>
         <param name="is_auto_mode" value="$(arg is_auto_mode)"/>
+
+        <remap from="~camera_calibration_feedback" to="eip/camera_calibration_feedback"/>
+        <remap from="~calibration_update" to="$(arg calibration_topic)"/>
        
         <!-- for Demo -->
         <param name="calib_result_dir_" type="string" value="$(find lvt2calib)/data/demo/calibration_result/" if="$(arg useDemo)"/>

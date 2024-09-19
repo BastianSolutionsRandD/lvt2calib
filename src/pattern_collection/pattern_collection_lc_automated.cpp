@@ -100,6 +100,9 @@ public:
         calib_feedback_pub_ = nh_.advertise<ultra_msgs::CameraCalibrationFeedback>("camera_calibration_feedback", 10);
 
         calib_status_sub_ = nh_.subscribe("camera_calibration_status", 10, &PatternCollectionNode::triggerCallback, this);
+
+        // Publish default value to indicate PLC that we are ready to receive moving commands
+        pubDefault();
     }
 
 
@@ -111,7 +114,10 @@ public:
         if(DEBUG) cout << "[" << ns_lv << "] livox_centroids->cloud.size = " << livox_centroids->cloud.width << endl;
         fromROSMsg(livox_centroids->cloud, *laser_cloud);
 
+        // sortPatternCentersXY(laser_cloud, lv);  // sort by coordinates
         sortPatternCentersXY(laser_cloud, lv);  // sort by coordinates
+        // sortPattern(laser_cloud, lv);  // sort by coordinates
+        
         if(DEBUG) cout << "[" << ns_lv << "] laser_cloud.size = " << laser_cloud->points.size() << endl;
 
     
@@ -142,7 +148,9 @@ public:
 
         camera_received_ = true;
         fromROSMsg(image_centroids->cloud, *camera_cloud);
+        
         sortPatternCentersXY(camera_cloud, camv);
+        // sortPattern(camera_cloud, camv);
 
         if(DEBUG) 
         {
@@ -255,7 +263,7 @@ public:
                 for(vector<pcl::PointXYZ>::iterator it=centroid_acc_lv.begin(); it<centroid_acc_lv.end(); ++it){
                     cout << "detected_3d_lidar_wt_centroid" << it - centroid_acc_lv.begin() << "="<< "[" << (*it).x << " " << (*it).y << " " << (*it).z << "]" << endl;
                 }
-
+            
             genMarker(laser_marker, cloud_frame_id_, "laser_points", centroid_acc_lv[0], centroid_acc_lv[1], centroid_acc_lv[2], centroid_acc_lv[3]);
             // genMarker(laser_marker, "base_link", "laser_points", centroid_acc_lv[0], centroid_acc_lv[1], centroid_acc_lv[2], centroid_acc_lv[3]);
 
@@ -310,7 +318,7 @@ public:
             visualization_msgs::MarkerArray marker_arr;
             marker_arr.markers.push_back(laser_marker);
             marker_arr.markers.push_back(cam_marker);
-            marker_arr.markers.push_back(cam_2d_marker);
+            // marker_arr.markers.push_back(cam_2d_marker);
             marker_pub_.publish(marker_arr);
         }
         laser_received_ = false;
@@ -382,6 +390,7 @@ public:
             // [four centroids]
             std::vector<pcl::PointXYZ> centroid_acc_cv = {centroid_cv_0, centroid_cv_1, centroid_cv_2, centroid_cv_3};
 
+            
             genMarker(cam_marker, image_frame_id_, "cam_points", centroid_acc_cv[0], centroid_acc_cv[1], centroid_acc_cv[2], centroid_acc_cv[3]);
             // genMarker(cam_marker, "base_link", "cam_points", centroid_acc_cv[0], centroid_acc_cv[1], centroid_acc_cv[2], centroid_acc_cv[3]);
 
@@ -398,7 +407,7 @@ public:
 
                 centroid_acc_cv_2d_pcl.push_back(pcl_point);
             }
-            genMarker(cam_2d_marker, "base_link", "cam_2d_points", centroid_acc_cv_2d_pcl[0], centroid_acc_cv_2d_pcl[1], centroid_acc_cv_2d_pcl[2], centroid_acc_cv_2d_pcl[3]);
+            //genMarker(cam_2d_marker, "base_link", "cam_2d_points", centroid_acc_cv_2d_pcl[0], centroid_acc_cv_2d_pcl[1], centroid_acc_cv_2d_pcl[2], centroid_acc_cv_2d_pcl[3]);
 
 
             if(DEBUG)
@@ -419,7 +428,7 @@ public:
                     laser_end = false;
                     cam_end = false;
 
-                    ROS_INFO("----- If want to skip this data, please press 'N' and 'ENTER'!");
+                    ROS_INFO("----- If you want to skip this data, please press 'N' and 'ENTER'!");
                     char key;
                     cin >> key;
                     if(key != 'Y' && key != 'y')
@@ -455,7 +464,7 @@ public:
             visualization_msgs::MarkerArray marker_arr;
             marker_arr.markers.push_back(laser_marker);
             marker_arr.markers.push_back(cam_marker);
-            marker_arr.markers.push_back(cam_2d_marker);
+            // marker_arr.markers.push_back(cam_2d_marker);
             marker_pub_.publish(marker_arr);
         }
 
@@ -490,7 +499,7 @@ public:
         marker.color.b = 0.0;
         marker.color.a = 1.0;
 
-        marker.lifetime.sec = 1;
+        //marker.lifetime.sec = 1;
         marker.action = marker.ADD;
         marker.header.frame_id = frame_id;
         marker.header.stamp = ros::Time::now();
@@ -590,6 +599,27 @@ public:
 
         of_file << endl;
         of_file.close();
+    }
+
+    void pubDefault()
+    {
+        ros::Rate rate(1); // 1 Hz frequency
+        int duration = 3; // Duration in seconds
+        auto start_time = std::chrono::steady_clock::now();
+
+            while (ros::ok() && (std::chrono::steady_clock::now() - start_time <= std::chrono::seconds(duration)))
+            {
+                ultra_msgs::CameraCalibrationFeedback calib_feedback_msg;
+                calib_feedback_msg.calib_feedback = calib_feedback_msg.DEFAULT;
+                calib_feedback_pub_.publish(calib_feedback_msg);
+                ROS_INFO("Published: %i", calib_feedback_msg.calib_feedback);
+
+                // Sleep to maintain the loop rate
+                rate.sleep();
+            }
+
+        ROS_INFO("Finished publishing messages.");
+        
     }
 
     void timerCallback(const ros::TimerEvent& event) 
@@ -795,7 +825,7 @@ int main(int argc, char **argv)
             // if(pc_node.latest_calib_msg_.calib_status == pc_node.latest_calib_msg_.SCAN_COMPLETE)
             // {
             //     ROS_WARN("<<<<<<<<<<<< SCAN COMPLETE <<<<<<<<<<<<");
-            //     ros::param::set("/end_process", true);
+            //     ros::param::set("/rgb_depth_calibration/end_process", true);
             //     break;
             // }
             // else
@@ -841,7 +871,7 @@ int main(int argc, char **argv)
             if(pc_node.latest_calib_msg_.calib_status == pc_node.latest_calib_msg_.SCAN_COMPLETE)
             {
                 ROS_WARN("<<<<<<<<<<<< SCAN COMPLETE <<<<<<<<<<<<");
-                ros::param::set("/end_process", true);
+                ros::param::set("/rgb_depth_calibration/end_process", true);
                 break;
             }
             else
@@ -852,7 +882,7 @@ int main(int argc, char **argv)
         if(pc_node.latest_calib_msg_.calib_status == pc_node.latest_calib_msg_.SCAN_COMPLETE)
         {
             ROS_WARN("<<<<<<<<<<<< SCAN COMPLETE <<<<<<<<<<<<");
-            ros::param::set("/end_process", true);
+            ros::param::set("/rgb_depth_calibration/end_process", true);
             break;
         }
 

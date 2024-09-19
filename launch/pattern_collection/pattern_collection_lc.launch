@@ -1,7 +1,7 @@
 <launch>
     <param name="use_sim_time" value="false"/>
     <param name="do_acc_boards" type="bool" value="false"/>
-    <param name="end_process" type="bool" value="false"/>
+    <param name="rgb_depth_calibration/end_process" type="bool" value="false"/>
     <param name="pause_processd" type="bool" value="false"/>
     <param name="cam_paused" type="bool" value="false"/>
     <param name="livox_paused" type="bool" value="false"/>
@@ -21,7 +21,7 @@
     <arg name="center_cam_tp" default="/$(arg ns_c)/cam_pattern/centers_cloud"/>
     <arg name="center_cam2d_tp" default="/$(arg ns_c)/cam_pattern/cam_2d_circle_center"/>
     <arg name="max_frame" default="10"/>
-    <arg name="rgb_depth_detection_timeout" default="30.0"/>
+    <arg name="rgb_depth_detection_timeout" default="45.0"/>
     <arg name="featureFileName" default="features_info_$(arg ns_l)_to_$(arg ns_c)"/>
 
     <!-- Main Node -->

@@ -2,13 +2,15 @@
     <arg name="stdout" default="screen"/>
     <arg name="useDemo" default="false"/>
 
-    <arg name="camera_name" default="vmpr"/>
+    <arg name="camera_name" default="center"/>
 
     <arg name="is_multi_exp" default="false"/>
     <arg name="is_auto_mode" default="false"/>
 	<arg name="camera_info_topic" default="/$(arg camera_name)_camera_color/camera_info"/>
     <arg name="ns_l" default="depth_camera"/>
     <arg name="ns_c" default="rgb"/>
+
+    <node type="rviz" name="rviz_$(arg camera_name)" pkg="rviz" args="-d $(find lvt2calib)/rviz/$(arg camera_name)_depth_camera_pattern.rviz" />
 
     <arg name="image_frame_id" default="$(arg camera_name)_camera_color_optical_frame"/>
     <arg name="cloud_frame_id" default="$(arg camera_name)_camera_depth_optical_frame"/>

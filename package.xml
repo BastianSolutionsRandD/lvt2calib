@@ -67,6 +67,7 @@
   <build_depend>cmake_modules</build_depend>
   <build_depend>message_generation</build_depend>
   <build_depend>ultra_msgs</build_depend>
+  <build_depend>commissioning_tools</build_depend>
   <build_depend>nodelet</build_depend>
 
   <build_export_depend>roscpp</build_export_depend>
@@ -87,6 +88,7 @@
   <build_export_depend>cmake_modules</build_export_depend>
   <build_export_depend>message_generation</build_export_depend>
   <build_export_depend>ultra_msgs</build_export_depend>
+  <build_export_depend>commissioning_tools</build_export_depend>
   
   <exec_depend>roscpp</exec_depend>
   <exec_depend>rospy</exec_depend>
@@ -106,7 +108,10 @@
   <exec_depend>cmake_modules</exec_depend>
   <exec_depend>message_runtime</exec_depend>
   <exec_depend>ultra_msgs</exec_depend>
+  <exec_depend>commissioning_tools</exec_depend>
   <exec_depend>nodelet</exec_depend>
+
+  <test_depend>rosunit</test_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

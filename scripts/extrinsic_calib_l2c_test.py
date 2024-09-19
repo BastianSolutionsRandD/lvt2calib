@@ -127,6 +127,8 @@ def find_transformation(A_points, B_points):
 def plot_points(ax, points, color, label):
     """ Helper function to plot points in 3D space. """
     ax.scatter(points[0, :], points[1, :], points[2, :], c=color, label=label)
+    for i, point in enumerate(points.T):
+        ax.text(point[0], point[1], point[2], f'{i}', color='black')
 
 def plot_transform(ax, origin, rotation_matrix, color, label):
     """ Helper function to plot the transform as arrows. """
@@ -142,6 +144,53 @@ def transform_points(points, rotation_matrix, translation):
     """ Apply rotation and translation to a set of points. """
     transformed_points = np.dot(rotation_matrix, points) +  translation[:, np.newaxis]
     return transformed_points
+
+def plot_transform(avg_translation, avg_rot_matrix, ax):
+    
+    # avg_rot_matrix = np.linalg.inv(avg_rot_matrix)
+    # avg_translation = avg_translation * (-1)
+    
+    ax.cla()
+    # Define the original coordinate frame
+    origin = np.array([0, 0, 0])
+    x_axis = np.array([1, 0, 0])
+    y_axis = np.array([0, 1, 0])
+    z_axis = np.array([0, 0, 1])
+
+    # Apply the rotation to the axes
+    x_rot = avg_rot_matrix @ x_axis
+    y_rot = avg_rot_matrix @ y_axis
+    z_rot = avg_rot_matrix @ z_axis
+
+    # Translate the rotated axes
+    x_rot_trans = x_rot + avg_translation
+    y_rot_trans = y_rot + avg_translation
+    z_rot_trans = z_rot + avg_translation
+    new_origin = avg_translation
+
+    # Plot the original coordinate frame
+    ax.quiver(origin[0], origin[1], origin[2], x_axis[0], x_axis[1], x_axis[2], color='r', label='Original X')
+    ax.quiver(origin[0], origin[1], origin[2], y_axis[0], y_axis[1], y_axis[2], color='g', label='Original Y')
+    ax.quiver(origin[0], origin[1], origin[2], z_axis[0], z_axis[1], z_axis[2], color='b', label='Original Z')
+
+    # Plot the transformed coordinate frame
+    ax.quiver(new_origin[0], new_origin[1], new_origin[2], x_rot_trans[0] - new_origin[0], x_rot_trans[1] - new_origin[1], x_rot_trans[2] - new_origin[2], color='r', linestyle='dashed', label='Transformed X')
+    ax.quiver(new_origin[0], new_origin[1], new_origin[2], y_rot_trans[0] - new_origin[0], y_rot_trans[1] - new_origin[1], y_rot_trans[2] - new_origin[2], color='g', linestyle='dashed', label='Transformed Y')
+    ax.quiver(new_origin[0], new_origin[1], new_origin[2], z_rot_trans[0] - new_origin[0], z_rot_trans[1] - new_origin[1], z_rot_trans[2] - new_origin[2], color='b', linestyle='dashed', label='Transformed Z')
+
+    # Set the plot limits
+    ax.set_xlim([-1.5, 2.5])
+    ax.set_ylim([-1.5, 3.5])
+    ax.set_zlim([-1.5, 4.5])
+
+    # Labels and legend
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.legend()
+
+    plt.draw()
+    plt.pause(120.0)
 
 def calib_transform1(file_path: str):
     calib_data = extract_data(file_path=file_path)
@@ -163,9 +212,9 @@ def calib_transform1(file_path: str):
         
         # Plot settings
         ax.cla()
-        ax.set_xlim(-0.8, 0.25)
-        ax.set_ylim(-0.8, 0.25)
-        ax.set_zlim(0.95, 2)
+        # ax.set_xlim(-5.0, 5.0)
+        # ax.set_ylim(-5.0, 5.0)
+        # ax.set_zlim(-5.0, 5.0)
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
@@ -186,8 +235,8 @@ def calib_transform1(file_path: str):
         cumulative_t.append(t)
         cumulative_r.append(np.array([roll, pitch, yaw]))
         
-        print("Rotation in rpy: ", roll, pitch , yaw)
-        print("\nTranslation Vector t:")
+        print("\nRotation in rpy: ", roll, pitch , yaw)
+        print("Translation Vector t:")
         print(t)
 
         # Plot points in reference frame A
@@ -208,13 +257,13 @@ def calib_transform1(file_path: str):
         ax.legend()
         plt.draw()
         ax.set_box_aspect([1, 1, 1])  # Aspect ratio is 1:1:1 (cube)
-        plt.pause(30.0)
+        plt.pause(10.0)
     
     print("\n\n")
     print("Average translation: ", np.mean(cumulative_t, axis=0))
     print("Average rotation rpy: ", np.mean(cumulative_r, axis=0))
     
-    avg_tranaslation = np.mean(cumulative_t, axis=0)
+    avg_translation = np.mean(cumulative_t, axis=0)
     avg_rot = np.mean(cumulative_r, axis=0)
     avg_rot_matrix = R.from_euler('xyz', avg_rot, degrees=False).as_matrix()
     
@@ -237,10 +286,10 @@ def calib_transform1(file_path: str):
         points_c = np.array([[detection.detected_cv.p1.x, detection.detected_cv.p2.x, detection.detected_cv.p3.x, detection.detected_cv.p4.x],
                               [detection.detected_cv.p1.y, detection.detected_cv.p2.y, detection.detected_cv.p3.y, detection.detected_cv.p4.y],
                               [detection.detected_cv.p1.z, detection.detected_cv.p2.z, detection.detected_cv.p3.z, detection.detected_cv.p4.z]])
-
+        plt.ion() 
         plot_points(ax, points_c, colors[i % len(colors)], 'Detected Points CV')
 
-        transformed_points = transform_points(points_l, avg_rot_matrix, avg_tranaslation)
+        transformed_points = transform_points(points_l, avg_rot_matrix, avg_translation)
         
         plot_points(ax, transformed_points, colors[(i+1) % len(colors)], 'Transformed points LV')
         
@@ -251,7 +300,9 @@ def calib_transform1(file_path: str):
         # Display plot
         ax.legend()
         plt.draw()
-        plt.pause(4.0)
+        plt.pause(2.0)
+    
+    plot_transform(avg_translation, avg_rot_matrix, ax)
         
         
 

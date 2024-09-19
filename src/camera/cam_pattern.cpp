@@ -417,11 +417,21 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
         
         // world coordinate
         std::vector<cv::Point2f> xw;
+        
+        // TODO: fix order
 
+        //CENTER 4-4:
         xw.push_back(Point2f(static_cast<float>(p1x_), static_cast<float>(p1y_))); // (300.0f,0.0f)
         xw.push_back(Point2f(static_cast<float>(p2x_), static_cast<float>(p2y_))); // (300.0f,300.0f)
         xw.push_back(Point2f(static_cast<float>(p3x_), static_cast<float>(p3y_))); // (0.0f,0.0f)
-        xw.push_back(Point2f(static_cast<float>(p4x_), static_cast<float>(p4y_))); // (0.0f,300.0f)W
+        xw.push_back(Point2f(static_cast<float>(p4x_), static_cast<float>(p4y_))); // (0.0f,300.0f)
+
+        //VMPR 4-4:
+        // xw.push_back(Point2f(static_cast<float>(p4x_), static_cast<float>(p4y_))); // (0.0f,300.0f)
+        // xw.push_back(Point2f(static_cast<float>(p2x_), static_cast<float>(p2y_))); // (300.0f,300.0f)
+        // xw.push_back(Point2f(static_cast<float>(p3x_), static_cast<float>(p3y_))); // (0.0f,0.0f)
+        // xw.push_back(Point2f(static_cast<float>(p1x_), static_cast<float>(p1y_))); // (300.0f,0.0f)
+        
 
         // Initialize translation and rotation matrix
         cv::Mat otw = Mat::zeros(3, 1, CV_64F); // Translation vector
@@ -447,10 +457,10 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
 
         // Four centers in world frame
         std::vector<cv::Point3d> wX ;
-        wX.push_back( cv::Point3d(p3x_,p3y_, 0) ); // wX_0 (-L, -L, 0)^T // 0, 0, 0
-        wX.push_back( cv::Point3d(p4x_,p4y_, 0) ); // wX_1 ( L, -L, 0)^T // 300, 0, 0
-        wX.push_back( cv::Point3d(p1x_,p1y_, 0) ); // wX_2 ( L,  L, 0)^T // 0, 300, 0
-        wX.push_back( cv::Point3d(p2x_,p2y_, 0) ); // wX_3 (-L,  L, 0)^T // 300, 300, 0
+        wX.push_back( cv::Point3d(p3x_,p3y_, 0) ); // wX_0 (-L, -L, 0)^T // 0, 0, 0, p3
+        wX.push_back( cv::Point3d(p4x_,p4y_, 0) ); // wX_1 ( L, -L, 0)^T // 300, 0, 0, p4
+        wX.push_back( cv::Point3d(p1x_,p1y_, 0) ); // wX_2 ( L,  L, 0)^T // 0, 300, 0, p1
+        wX.push_back( cv::Point3d(p2x_,p2y_, 0) ); // wX_3 (-L,  L, 0)^T // 300, 300, 0, p2
  
         std::vector<cv::Point3d> points_3d;
         for(int i = 0; i < wX.size(); i++) 
@@ -690,7 +700,7 @@ int main(int argc, char* argv[])
     ros::param::set("/cam_paused", false);
     while(ros::ok())
     {
-        ros::param::get("/end_process", end_process);
+        ros::param::get("/rgb_depth_calibration/end_process", end_process);
         ros::param::get("/pause_process", pause_process);
         if(end_process) 
             break;
@@ -701,7 +711,7 @@ int main(int argc, char* argv[])
             ros::param::set("/cam_paused", true);
             while(pause_process && !end_process && ros::ok())
             {
-                ros::param::get("/end_process", end_process);
+                ros::param::get("/rgb_depth_calibration/end_process", end_process);
                 ros::param::get("/pause_process", pause_process);
             }
             ros::param::set("/cam_paused", false);

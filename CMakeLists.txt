@@ -5,6 +5,9 @@ project(lvt2calib)
 # add_compile_options(-std=c++11)
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -w ")
 
+# Enable building tests by default
+option(BUILD_TESTING "Build tests" ON)
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -26,6 +29,7 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules
   message_generation
   ultra_msgs
+  commissioning_tools
 )
 
 ## System dependencies are found with CMake's conventions
@@ -390,6 +394,27 @@ target_link_libraries(pc_transform
 #############
 ## Testing ##
 #############
+
+if (CATKIN_ENABLE_TESTING)
+
+  # find_package(GTest REQUIRED)
+  # List of test suites
+  set(TEST_SUITES
+  test_rectangle_points_sorting)
+  enable_testing()
+
+  # Loop over test suites
+  foreach(TEST_SUITE ${TEST_SUITES})
+
+      catkin_add_gtest(${TEST_SUITE} test/${TEST_SUITE}.cpp)
+      target_link_libraries(${TEST_SUITE} ${catkin_LIBRARIES})
+
+      # gtest_discover_tests(${TEST_SUITE})
+      
+  endforeach()
+  
+  ### End gtest
+endif()
 
 ## Add gtest based cpp test target and link libraries
 # catkin_add_gtest(${PROJECT_NAME}-test test/test_lvt2calib.cpp)

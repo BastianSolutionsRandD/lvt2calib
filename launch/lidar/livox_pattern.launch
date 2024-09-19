@@ -3,7 +3,7 @@
   <param name="use_sim_time" value="false"/>
   <param name="do_acc_boards" type="bool" value="false"/>
   <param name="pause_process" type="bool" value="false"/>
-  <param name="end_process" type="bool" value="false"/>
+  <param name="rgb_depth_calibration/end_process" type="bool" value="false"/>
   <param name="livox_paused" type="bool" value="false"/>
 
   <!-- <param name="max_frame" type="int" value="10" default="60"/> -->

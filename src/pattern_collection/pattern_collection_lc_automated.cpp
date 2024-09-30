@@ -73,6 +73,7 @@ public:
 
         nh_.param<bool>("useCentroid_laser", use_centroid_laser_, false);
         nh_.param<bool>("save_final_data", save_final_data_, false);
+        nh_.param<bool>("user_confirm_after_each_pose", user_confirm_after_each_pose_, false);
 
         nh_.param<string>("result_dir_", result_dir_, "");
         nh_.param<string>("feature_file_name",feature_file_name_, "");
@@ -276,18 +277,37 @@ public:
 
                 ROS_WARN("[%s] REACH THE MAX FRAME", ns_lv.c_str());
                 // ROS_WARN("%d %d %d", save_final_data_, laser_end, cam_end);
-                if(save_final_data_ && laser_end && cam_end)
+                if(laser_end && cam_end)
                 {
                     laser_end = false;
                     cam_end = false;
-
-                    ROS_INFO("----- Press 'Y' to save the data or 'N' to skip it!");
-                    char key;
-                    cin >> key;
-                    if(key != 'Y' && key != 'y')
+                    
+                    if(user_confirm_after_each_pose_)
                     {
-                        ROS_INFO("------Skipping this set of data------");
-                        skip_current_step = true;
+                        ROS_INFO("----- Press 'Y' to save the data or 'N' to skip it!");
+                        char key;
+                        cin >> key;
+                        if(key != 'Y' && key != 'y')
+                        {
+                            ROS_INFO("------Skipping this set of data------");
+                            skip_current_step = true;
+                        }
+                        else
+                        {
+                            final_saved_ = true;
+
+                            ROS_INFO("<<< Saving Data...");
+                            writeCircleCenters(os_final.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
+                            
+                            if(save_final_data_)
+                            {
+                                writeCircleCenters(os_final_realtime.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
+                            }
+
+                            ROS_WARN("****** Final Data Saved!!! (%s) ******", ns_lv.c_str());
+
+                            sleep(2);
+                        }
                     }
                     else
                     {
@@ -295,19 +315,24 @@ public:
 
                         ROS_INFO("<<< Saving Data...");
                         writeCircleCenters(os_final.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
-                        writeCircleCenters(os_final_realtime.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
+                        
+                        if(save_final_data_)
+                        {
+                            writeCircleCenters(os_final_realtime.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
+                        }
 
                         ROS_WARN("****** Final Data Saved!!! (%s) ******", ns_lv.c_str());
 
                         sleep(2);
+
                     }
+
+                    
 
                     ROS_INFO("Successful detection completion!");
                     ultra_msgs::CameraCalibrationFeedback calib_feedback_msg;
                     calib_feedback_msg.calib_feedback = calib_feedback_msg.DETECTION_VALID;
                     calib_feedback_pub_.publish(calib_feedback_msg);
-
-                    std::cout << "Final saved: " << final_saved_ << std::endl;
 
                     laser_sub_.shutdown();
                     stereo_sub_.shutdown();
@@ -423,27 +448,47 @@ public:
 
                 ROS_WARN("[%s] REACH THE MAX FRAME", ns_cv.c_str());
                 // ROS_WARN("%d %d %d", save_final_data_, laser_end, cam_end);
-                if(save_final_data_ && laser_end && cam_end)
+                if(laser_end && cam_end)
                 {
                     laser_end = false;
                     cam_end = false;
 
-                    ROS_INFO("----- If you want to skip this data, please press 'N' and 'ENTER'!");
-                    char key;
-                    cin >> key;
-                    if(key != 'Y' && key != 'y')
+                    if(user_confirm_after_each_pose_)
                     {
-                        ROS_INFO("------Skipping this set of data------");
-                        skip_current_step = true;
+                        ROS_INFO("----- Press Y if you want to save this data or N if you want to skip this data, and 'ENTER'!");
+                        char key;
+                        cin >> key;
+                        if(key != 'Y' && key != 'y')
+                        {
+                            ROS_INFO("------Skipping this set of data------");
+                            skip_current_step = true;
+                        }
+                        else
+                        {
+                            final_saved_ =true;
+
+                            ROS_INFO("<<< Saving Data...");
+                            writeCircleCenters(os_final.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
+                            
+                            if(save_final_data_)
+                            {
+                                writeCircleCenters(os_final_realtime.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
+                            }
+                            ROS_WARN("****** Final Data Saved!!! (%s) ******", ns_cv.c_str());
+                            sleep(2);
+                        }
                     }
                     else
                     {
-                        final_saved_ =true;
-
+                        final_saved_ = true;
                         ROS_INFO("<<< Saving Data...");
                         writeCircleCenters(os_final.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
-                        writeCircleCenters(os_final_realtime.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
-
+                        
+                        if(save_final_data_)
+                        {
+                            writeCircleCenters(os_final_realtime.str().c_str(), final_centroid_acc_lv, final_centroid_acc_cv, final_cam_2d_centers_sorted);
+                        }
+                        
                         ROS_WARN("****** Final Data Saved!!! (%s) ******", ns_cv.c_str());
                         sleep(2);
                     }
@@ -452,8 +497,6 @@ public:
                     ultra_msgs::CameraCalibrationFeedback calib_feedback_msg;
                     calib_feedback_msg.calib_feedback = calib_feedback_msg.DETECTION_VALID;
                     calib_feedback_pub_.publish(calib_feedback_msg);
-
-                    std::cout << "Final saved: " << final_saved_ << std::endl;
 
                     laser_sub_.shutdown();
                     stereo_sub_.shutdown();
@@ -561,21 +604,27 @@ public:
 
     void fileHandle()
     {
+        os_final.str("");
+        os_final << result_dir_ << feature_file_name_ << ".csv";
+
+        ROS_INFO("opening %s", os_final.str().c_str());
+
+        std::ofstream of_final_centers;
+        of_final_centers.open(os_final.str().c_str());
+        of_final_centers << "time,detected_lv[0]x,detected_lv[0]y,detected_lv[0]z,detected_lv[1]x,detected_lv[1]y,detected_lv[1]z,detected_lv[2]x,detected_lv[2]y,detected_lv[2]z,detected_lv[3]x,detected_lv[3]y,detected_lv[3]z,detected_cv[0]x,detected_cv[0]y,detected_cv[0]z,detected_cv[1]x,detected_cv[1]y,detected_cv[1]z,detected_cv[2]x,detected_cv[2]y,detected_cv[2]z,detected_cv[3]x,detected_cv[3]y,detected_cv[3]z,cam_2d_detected_centers[0]x,cam_2d_detected_centers[0]y,cam_2d_detected_centers[1]x,cam_2d_detected_centers[1]y,cam_2d_detected_centers[2]x,cam_2d_detected_centers[2]y,cam_2d_detected_centers[3]x,cam_2d_detected_centers[3]y" << endl;
+        of_final_centers.close();
+
         if(save_final_data_)
         {
-            os_final.str("");
+            
             os_final_realtime.str("");
-            os_final << result_dir_ << feature_file_name_ << ".csv";
             os_final_realtime << result_dir_ << feature_file_name_ << "_" << currentDateTime() << ".csv" << endl;
 
-            ROS_INFO("opening %s", os_final.str().c_str());
             ROS_INFO("opening %s", os_final_realtime.str().c_str());
 
-            std::ofstream of_final_centers, of_final_centers_realtime;
-            of_final_centers.open(os_final.str().c_str());
+            std::ofstream of_final_centers_realtime;
+            
             of_final_centers_realtime.open(os_final_realtime.str().c_str());
-            of_final_centers << "time,detected_lv[0]x,detected_lv[0]y,detected_lv[0]z,detected_lv[1]x,detected_lv[1]y,detected_lv[1]z,detected_lv[2]x,detected_lv[2]y,detected_lv[2]z,detected_lv[3]x,detected_lv[3]y,detected_lv[3]z,detected_cv[0]x,detected_cv[0]y,detected_cv[0]z,detected_cv[1]x,detected_cv[1]y,detected_cv[1]z,detected_cv[2]x,detected_cv[2]y,detected_cv[2]z,detected_cv[3]x,detected_cv[3]y,detected_cv[3]z,cam_2d_detected_centers[0]x,cam_2d_detected_centers[0]y,cam_2d_detected_centers[1]x,cam_2d_detected_centers[1]y,cam_2d_detected_centers[2]x,cam_2d_detected_centers[2]y,cam_2d_detected_centers[3]x,cam_2d_detected_centers[3]y" << endl;
-            of_final_centers.close();
             of_final_centers_realtime << "time,detected_lv[0]x,detected_lv[0]y,detected_lv[0]z,detected_lv[1]x,detected_lv[1]y,detected_lv[1]z,detected_lv[2]x,detected_lv[2]y,detected_lv[2]z,detected_lv[3]x,detected_lv[3]y,detected_lv[3]z,detected_cv[0]x,detected_cv[0]y,detected_cv[0]z,detected_cv[1]x,detected_cv[1]y,detected_cv[1]z,detected_cv[2]x,detected_cv[2]y,detected_cv[2]z,detected_cv[3]x,detected_cv[3]y,detected_cv[3]z,cam_2d_detected_centers[0]x,cam_2d_detected_centers[0]y,cam_2d_detected_centers[1]x,cam_2d_detected_centers[1]y,cam_2d_detected_centers[2]x,cam_2d_detected_centers[2]y,cam_2d_detected_centers[3]x,cam_2d_detected_centers[3]y" << endl;
             of_final_centers_realtime.close();
         }
@@ -776,6 +825,7 @@ public:
 
     bool use_centroid_laser_ = false;
     bool save_final_data_ = false;
+    bool user_confirm_after_each_pose_ = false;
     bool receiving_positions_ = true;
 
     bool laser_received_, camera_received_, cam_2d_received_;

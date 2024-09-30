@@ -8,6 +8,7 @@
   <arg name="image_tp" default="/thermal_cam/thermal_image"/>
   <arg name="camera_info_topic" default=""/>
   <arg name="ns_" default="camera"/>
+  <arg name="camera_name" default="vmpr_camera" />
 
   <arg name="p1x_val" default="300.0"/>
   <arg name="p1y_val" default="0.0"/>
@@ -39,8 +40,11 @@
       <param name="image_tp" value="$(arg image_tp)"/>
       <param name="camera_info_topic" type="string" value="$(arg camera_info_topic)"/>
       <param name="ns_" value="$(arg ns_)"/>
+      <param name="camera_name" value="$(arg camera_name)" />
       <param name="is_rgb" value="$(arg isRGB)"/>
       <param name="use_darkboard" value="$(arg isDarkBoard)" />
+
+      <remap from="~camera_calibration_status" to="/eip/camera_calibration_status"/>
 
       <param name="min_centers_found" type="int" value="4"/>
       <param name="centroid_dis_min" type="double" value="0.15"/>

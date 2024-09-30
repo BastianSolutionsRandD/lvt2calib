@@ -9,20 +9,22 @@
     <!-- the number of frames accumulated to do the calibration, default:60 -->
     <!-- laser -->
     <arg name="ns_l" default="depth_camera"/>
-    <arg name="rgb_camera_name" default="vmpr"/> 
+    <arg name="rgb_camera_name" default="vmpr_camera"/> 
     <arg name="depth_camera_name" default="vmpr"/> 
 
-    <arg name="cloud_frame_id" default="$(arg depth_camera_name)_camera_depth_optical_frame"/>
+    <arg name="cloud_frame_id" default="$(arg depth_camera_name)_depth_optical_frame"/>
     <!-- <arg name="cloud_frame_id" default="sick_visionary_t_mini_depth_optical_frame"/> -->
     <!-- camera -->
     <arg name="ns_c" default="rgb"/>
-    <arg name="image_frame_id" default="$(arg rgb_camera_name)_camera_color_optical_frame"/>
+    <arg name="image_frame_id" default="$(arg rgb_camera_name)_color_optical_frame"/>
     <arg name="center_laser_tp" default="/$(arg ns_l)/centers_cloud"/>
     <arg name="center_cam_tp" default="/$(arg ns_c)/cam_pattern/centers_cloud"/>
     <arg name="center_cam2d_tp" default="/$(arg ns_c)/cam_pattern/cam_2d_circle_center"/>
     <arg name="max_frame" default="10"/>
     <arg name="rgb_depth_detection_timeout" default="45.0"/>
     <arg name="featureFileName" default="features_info_$(arg ns_l)_to_$(arg ns_c)"/>
+
+    <arg name="save_final_data" default="false"/>
 
     <!-- Main Node -->
     <node pkg="lvt2calib" type="pattern_collection_lc_automated" name="pattern_collection_lc_automated" output="screen">
@@ -48,8 +50,8 @@
         <param name="useAccCenters_laser" value="false" />
 
         <!-- Save file? -->        
-        <param name="save_final_data" type="bool" value="true"/>
-        <!-- MUST TRUE!!! -->
+        <param name="save_final_data" type="bool" value="$(arg save_final_data)"/>
+        <param name="user_confirm_after_each_pose" type="bool" value="false"/>
 
         <!-- File Path -->
         <param name="result_dir_" type="string" value="$(find lvt2calib)/data/pattern_collection_result/"/>

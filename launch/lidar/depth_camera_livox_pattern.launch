@@ -8,10 +8,10 @@
 
   <!-- <param name="max_frame" type="int" value="10" default="60"/> -->
 
-  <arg name="depth_camera_name" default="vmpr"/>
+  <arg name="depth_camera_name" default="vmpr_camera"/>
 
   <arg name="stdout" default="screen"/>
-  <arg name="cloud_tp" default="/$(arg depth_camera_name)_camera_depth/points"/>
+  <arg name="cloud_tp" default="/$(arg depth_camera_name)_depth/points"/>
   <!-- <arg name="cloud_tp" default="/sick_visionary_t_mini/points"/> -->
   <arg name="use_RG_Pseg" default="false"/>
   <arg name="use_passthrough_preprocess" default="true"/>
@@ -20,7 +20,7 @@
   <arg name="rmse_ukn2tpl_thre" default="0.05"/>
   <arg name="rmse_tpl2ukn_thre" default="0.03"/>
 
-  <arg name="source_frame" default="$(arg depth_camera_name)_camera_depth_optical_frame"/>
+  <arg name="source_frame" default="$(arg depth_camera_name)_depth_optical_frame"/>
   <!-- <arg name="source_frame" default="sick_visionary_t_mini_depth_optical_frame"/> -->
   <arg name="target_frame" default="base_link"/>
 

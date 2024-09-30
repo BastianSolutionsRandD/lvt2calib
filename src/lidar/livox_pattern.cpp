@@ -38,6 +38,8 @@
 #include <lvt2calib/livox_utils.h>
 #include <lvt2calib/LaserConfig.h>
 
+#include <ultra_msgs/CameraCalibrationStatus.h>
+
 #define DEBUG 0
 
 #define LOG_DETECTION 0
@@ -93,14 +95,28 @@ string ns_str;
 AutoDetectLaser myDetector;
 FourCircleCenters myFourCenters;
 
+ultra_msgs::CameraCalibrationStatus latest_calib_msg_;
+
+
 void load_param(ros::NodeHandle& nh_);
 void set_run_param();
 void param_callback(lvt2calib::LaserConfig &config, uint32_t level);
 
 
+void cameraCalibrationStatusCallback(const ultra_msgs::CameraCalibrationStatus& msg) 
+{
+    latest_calib_msg_ = msg;
+}
+
 void callback(const PointCloud2::ConstPtr& laser_cloud)
 {
     
+    if(latest_calib_msg_.calib_status != latest_calib_msg_.AT_POSITION)
+    {
+        ROS_WARN_THROTTLE(1.0, "LIDAR pattern detector waiting for calibration status to be at position");
+        return;
+    }
+
     if(LOG_DETECTION)
     {
         ROS_INFO("[%s] Processing cloud...", ns_str.c_str());
@@ -454,6 +470,7 @@ int main(int argc, char **argv)
     myDetector.setCalibTemplate(*calib_board_bound_template);
 
     ros::Subscriber sub = nh_.subscribe("cloud_laser", queue_size_, callback);
+    ros::Subscriber calib_status_sub = nh_.subscribe("camera_calibration_status", 1, cameraCalibrationStatusCallback);
 
     reload_cloud_pub = nh_.advertise<PointCloud2>("cloud_in", 1);
     plane_segments_pub = nh_.advertise<PointCloud2>("plane_segments", 1);

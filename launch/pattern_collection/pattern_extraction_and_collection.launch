@@ -1,12 +1,14 @@
 <launch>
 
-  <arg name="rgb_camera_name" default="center"/>
-  <arg name="depth_camera_name" default="center"/>
+  <arg name="rgb_camera_name" default="center_camera"/>
+  <arg name="depth_camera_name" default="center_camera"/>
   <arg name="board_on_eoat" default="false" />
   <arg name="calibration_topic" default="test_calibration_topic"/>
   <arg name="rviz_debug" default="true"/>
-  
-  <node type="rviz" name="rviz_$(arg depth_camera_name)" pkg="rviz" args="-d $(find lvt2calib)/rviz/$(arg depth_camera_name)_depth_camera_pattern.rviz" if="$(arg rviz_debug)"/>
+  <arg name="save_final_data" default="false"/>
+  <arg name="rgb_depth_detection_timeout" default="30.0"/>
+
+  <node type="rviz" name="rviz_$(arg depth_camera_name)" pkg="rviz" args="-d $(find lvt2calib)/rviz/$(arg depth_camera_name)_depth_pattern.rviz" if="$(arg rviz_debug)"/>
 
 
   <include file="$(find lvt2calib)/launch/camera/rgb_cam_pattern.launch">
@@ -23,11 +25,13 @@
 
   <include file="$(find lvt2calib)/launch/pattern_collection/pattern_collection.launch">
     <arg name="l2c_calib" value="true"/>
-    <arg name="max_frame" value="20"/>
+    <arg name="max_frame" value="5"/>
     <arg name="ns_s1" value="depth_camera"/>
     <arg name="ns_s2" value="rgb"/>
     <arg name="rgb_camera_name" value="$(arg rgb_camera_name)"/>
     <arg name="depth_camera_name"  value="$(arg depth_camera_name)"/>
+    <arg name="save_final_data" value="$(arg save_final_data)"/>
+    <arg name="rgb_depth_detection_timeout" value="$(arg rgb_depth_detection_timeout)"/>
   </include>
 
 

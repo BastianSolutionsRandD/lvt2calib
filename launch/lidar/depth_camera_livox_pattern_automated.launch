@@ -8,10 +8,10 @@
 
   <!-- <param name="max_frame" type="int" value="10" default="60"/> -->
 
-  <arg name="depth_camera_name" default="vmpr"/>
+  <arg name="depth_camera_name" default="vmpr_camera"/>
 
   <arg name="stdout" default="screen"/>
-  <arg name="cloud_tp" default="/$(arg depth_camera_name)_camera_depth/points"/>
+  <arg name="cloud_tp" default="/$(arg depth_camera_name)_depth/points"/>
   <!-- <arg name="cloud_tp" default="/sick_visionary_t_mini/points"/> -->
   <arg name="use_RG_Pseg" default="false"/>
   <arg name="use_passthrough_preprocess" default="true"/>
@@ -20,7 +20,7 @@
   <arg name="rmse_ukn2tpl_thre" default="0.05"/>
   <arg name="rmse_tpl2ukn_thre" default="0.03"/>
 
-  <arg name="source_frame" default="$(arg depth_camera_name)_camera_depth_optical_frame"/>
+  <arg name="source_frame" default="$(arg depth_camera_name)_depth_optical_frame"/>
   <!-- <arg name="source_frame" default="sick_visionary_t_mini_depth_optical_frame"/> -->
   <arg name="target_frame" default="eoat"/>
 
@@ -54,7 +54,7 @@
         <remap from="~output" to="$(arg cloud_tp)/y_filtered" />
         <rosparam>
           filter_field_name: y
-          filter_limit_min: -0.52
+          filter_limit_min: -0.72
           filter_limit_max: 0.42
 
           filter_limit_negative: False
@@ -63,7 +63,21 @@
         </rosparam>
       </node>
 
-      <node pkg="nodelet" type="nodelet" name="pass_through_z" args="load pcl/PassThrough pcl_manager" output="$(arg stdout)">
+      <node pkg="nodelet" type="nodelet" name="pass_through_z" args="load pcl/PassThrough pcl_manager" output="$(arg stdout)" if="$(eval arg('depth_camera_name') == 'vmpr_camera')">
+        <remap from="~input" to="$(arg cloud_tp)/y_filtered" />
+        <remap from="~output" to="$(arg cloud_tp)/z_filtered" />
+        <rosparam>
+          filter_field_name: z
+          filter_limit_min: 0.13
+          filter_limit_max: 0.8
+
+          filter_limit_negative: False
+          max_queue_size: 1
+          keep_organized: False
+        </rosparam>
+      </node>
+
+      <node pkg="nodelet" type="nodelet" name="pass_through_z" args="load pcl/PassThrough pcl_manager" output="$(arg stdout)" if="$(eval arg('depth_camera_name') == 'center_camera')">
         <remap from="~input" to="$(arg cloud_tp)/y_filtered" />
         <remap from="~output" to="$(arg cloud_tp)/z_filtered" />
         <rosparam>
@@ -91,6 +105,8 @@
 
       <param name="model_path" type="string" value="$(find lvt2calib)/data/template_pcl/output_boundary.pcd"/>
       <!-- <param name="model_path" type="string" value="$(find lvt2calib)/data/template_pcl/four_circle_boundary.pcd"/> -->
+
+      <remap from="~camera_calibration_status" to="/eip/camera_calibration_status"/>
 
       <param name="is_gazebo" type="bool" value="false"/>
 

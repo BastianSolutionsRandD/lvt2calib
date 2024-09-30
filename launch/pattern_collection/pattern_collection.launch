@@ -5,8 +5,10 @@
     <arg name="max_frame" default="20"/>
     <arg name="l2c_calib" default="true"/>
     <arg name="l2l_calib" default="false"/>
-    <arg name="rgb_camera_name" default="vmpr"/>
-    <arg name="depth_camera_name" default="vmpr"/>
+    <arg name="rgb_camera_name" default="vmpr_camera"/>
+    <arg name="depth_camera_name" default="vmpr_camera"/>
+    <arg name="save_final_data" default="false"/>
+    <arg name="rgb_depth_detection_timeout" default="45.0"/>
 
     <group if="$(arg l2c_calib)">
         <include file="$(find lvt2calib)/launch/pattern_collection/pattern_collection_lc.launch">
@@ -15,6 +17,8 @@
             <arg name="max_frame" value="$(arg max_frame)"/>
             <arg name="rgb_camera_name" value="$(arg rgb_camera_name)"/>
             <arg name="depth_camera_name"  value="$(arg depth_camera_name)"/>
+            <arg name="save_final_data" value="$(arg save_final_data)"/>
+            <arg name="rgb_depth_detection_timeout" value="$(arg rgb_depth_detection_timeout)"/>
         </include>
     </group>
 

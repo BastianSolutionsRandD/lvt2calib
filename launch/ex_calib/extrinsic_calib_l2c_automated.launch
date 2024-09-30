@@ -2,22 +2,22 @@
     <arg name="stdout" default="screen"/>
     <arg name="useDemo" default="false"/>
 
-    <arg name="camera_name" default="vmpr"/>
+    <arg name="camera_name" default="vmpr_camera"/>
 
     <arg name="calibration_topic" default="test_calibration_topic"/>
 
     <arg name="is_multi_exp" default="false"/>
     <arg name="is_auto_mode" default="false"/>
-	<arg name="camera_info_topic" default="/$(arg camera_name)_camera_color/camera_info"/>
+	<arg name="camera_info_topic" default="/$(arg camera_name)_color/camera_info"/>
     <arg name="ns_l" default="depth_camera"/>
     <arg name="ns_c" default="rgb"/>
 
-    <arg name="image_frame_id" default="$(arg camera_name)_camera_color_optical_frame"/>
-    <arg name="cloud_frame_id" default="$(arg camera_name)_camera_depth_optical_frame"/>
+    <arg name="image_frame_id" default="$(arg camera_name)_color_optical_frame"/>
+    <arg name="cloud_frame_id" default="$(arg camera_name)_depth_optical_frame"/>
     <!-- <arg name="cloud_frame_id" default="sick_visionary_t_mini_depth_optical_frame"/> -->
 
-    <arg name="image_mount_link_frame_id" default="$(arg camera_name)_camera_triton_mount_link"/>
-    <arg name="cloud_mount_link_frame_id" default="$(arg camera_name)_camera_helios2_mount_link"/>
+    <arg name="image_mount_link_frame_id" default="$(arg camera_name)_triton_mount_link"/>
+    <arg name="cloud_mount_link_frame_id" default="$(arg camera_name)_helios2_mount_link"/>
     <!-- <arg name="cloud_mount_link_frame_id" default="sick_visionary_t_mini_mount_link"/> -->
 
 

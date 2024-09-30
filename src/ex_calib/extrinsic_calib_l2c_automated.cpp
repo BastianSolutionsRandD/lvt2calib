@@ -45,6 +45,9 @@ cv::Mat cameraMatrix_ = Mat_<double>(3,3);
 bool save_calib_file = false, is_multi_exp = false;
 bool is_auto_mode = false;
 std::string calibration_topic_;
+std::string lvt2calib_camera_optical_frame_id = "lvt2calib_camera_optical_frame";
+std::string lvt2calib_camera_mount_link_frame_id = "lvt2calib_camera_mount_link_frame";
+
 std::string image_frame_id, cloud_frame_id, image_mount_link_frame_id, cloud_mount_link_frame_id;
 vector<pcl::PointXYZ> lv_3d_for_reproj;
 std::vector<cv::Point2f> lv_2d_projected, lv_2d_projected_min2d, lv_2d_projected_min3d,
@@ -236,7 +239,7 @@ void publishTransformedTF(string frame1, string frame2, string base_frame, strin
     // Publish the static transform
     static_broadcaster.sendTransform(mount_optical_tf);
 
-    std::cout << "Broadcasted TF between " << frame2 << " and " << child_frame << std::endl;
+    std::cout << "Broadcasted transformed TF between " << frame2 << " and " << child_frame << std::endl;
     sleep(1.0);
 }
 
@@ -253,17 +256,28 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
     // tfError(cloud_frame_id, image_frame_id, "test_depth", image_frame_id);
     
 
-    publishTf(cloud_frame_id, "test_camera", Tr_s2l_centroid_min_3d);
-    publishTransformedTF(image_frame_id, "test_camera", image_mount_link_frame_id, "test_camera_mount_link");
-    tfError(image_frame_id, cloud_frame_id, "test_camera", cloud_frame_id);
+    publishTf(cloud_frame_id, lvt2calib_camera_optical_frame_id, Tr_s2l_centroid_min_3d);
+    publishTransformedTF(image_frame_id, lvt2calib_camera_optical_frame_id, image_mount_link_frame_id, lvt2calib_camera_mount_link_frame_id);
+    // tfError(image_frame_id, cloud_frame_id, lvt2calib_camera_optical_frame_id, cloud_frame_id);
 
     commissioning_tools::CalibrationUpdate calib_update_msg;
-    calib_update_msg.original = tfBuffer_.lookupTransform(image_mount_link_frame_id, cloud_mount_link_frame_id, ros::Time(0), ros::Duration(1.0));
-    calib_update_msg.calibrated = tfBuffer_.lookupTransform("test_camera_mount_link", cloud_mount_link_frame_id, ros::Time(0), ros::Duration(1.0));
+
+    try
+    {
+        std::cout << "Looking up: " << cloud_mount_link_frame_id << " and " << image_mount_link_frame_id <<std::endl;
+        std::cout << "Looking up: " << cloud_mount_link_frame_id << " and " << lvt2calib_camera_mount_link_frame_id <<std::endl;
+        calib_update_msg.original = tfBuffer_.lookupTransform(cloud_mount_link_frame_id, image_mount_link_frame_id, ros::Time(0), ros::Duration(1.0));
+        calib_update_msg.calibrated = tfBuffer_.lookupTransform(cloud_mount_link_frame_id, lvt2calib_camera_mount_link_frame_id, ros::Time(0), ros::Duration(1.0));    
+    }
+    catch(tf2::TransformException& ex)
+    {
+        ROS_ERROR("%s", ex.what());
+    }
+
     calib_result_pub_.publish(calib_update_msg);
 
     // std::string depth_mount_link_frame_id = "center_camera_helios2_mount_link";
-    // publishTransformedTF(depth_mount_link_frame_id, image_mount_link_frame_id, "test_camera_mount_link", "test_depth_mount_link");
+    // publishTransformedTF(depth_mount_link_frame_id, image_mount_link_frame_id, "lvt2calib_camera_mount_link", "test_depth_mount_link");
 
     // Get final transform from velo to camera (using centroid to do calibration)
     Eigen::Matrix4d Tr_s2c_centroid, Tr_l2c_centroid_min3d;
@@ -321,33 +335,33 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
     // mycalib.transf_2d.setOrigin(origin_2d);
     // mycalib.transf_2d.setRotation(tfqt_2d);
 
-    ROS_WARN("********** 3.0 calculate error **********"); 
-    // Eigen::Matrix3d R_min3d, R_min2d;
-    Eigen::Matrix3d R_min3d;
-    R_min3d = Tr_l2c_centroid_min3d.block(0,0,3,3);
-    // R_min2d = Tr_l2c_centroid_min2d.block(0,0,3,3);
+    // ROS_WARN("********** 3.0 calculate error **********"); 
+    // // Eigen::Matrix3d R_min3d, R_min2d;
+    // Eigen::Matrix3d R_min3d;
+    // R_min3d = Tr_l2c_centroid_min3d.block(0,0,3,3);
+    // // R_min2d = Tr_l2c_centroid_min2d.block(0,0,3,3);
 
-    cout << "<<<<< 3.1 3D Matching Error" << endl;
-    vector<double> align_err_min3d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2c_centroid_min3d);
-    // vector<double> align_err_min2d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2c_centroid_min2d);
-    cout << "min3d [rmse_x, rmse_y, rmse_z, rmse_total] = [";
-    for(auto it : align_err_min3d) cout << it << " ";
-    cout << "]" << endl;
-    // cout << "min2d [rmse_x, rmse_y, rmse_z, rmse_total] = [";
-    // for(auto it : align_err_min2d) cout << it << " ";
+    // cout << "<<<<< 3.1 3D Matching Error" << endl;
+    // vector<double> align_err_min3d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2c_centroid_min3d);
+    // // vector<double> align_err_min2d = mycalib.calAlignError(mycalib.s1_cloud, mycalib.s2_cloud, Tr_l2c_centroid_min2d);
+    // cout << "min3d [rmse_x, rmse_y, rmse_z, rmse_total] = [";
+    // for(auto it : align_err_min3d) cout << it << " ";
     // cout << "]" << endl;
+    // // cout << "min2d [rmse_x, rmse_y, rmse_z, rmse_total] = [";
+    // // for(auto it : align_err_min2d) cout << it << " ";
+    // // cout << "]" << endl;
 
-    cout << "<<<<< 3.1 2D Re-projection Error" << endl;
-    // min3d
-    cv::Mat Tr_l2c_min3d_cv;
-    // eigen2cv(Tr_l2c_centroid_min2d, Tr_l2c_min3d_cv);
-    lv_2d_projected_min3d.clear();
-    projectVelo2Cam(mycalib.s1_cloud, cameraMatrix_, Tr_l2c_min3d_cv, lv_2d_projected_min3d);
+    // cout << "<<<<< 3.1 2D Re-projection Error" << endl;
+    // // min3d
+    // cv::Mat Tr_l2c_min3d_cv;
+    // // eigen2cv(Tr_l2c_centroid_min2d, Tr_l2c_min3d_cv);
+    // lv_2d_projected_min3d.clear();
+    // projectVelo2Cam(mycalib.s1_cloud, cameraMatrix_, Tr_l2c_min3d_cv, lv_2d_projected_min3d);
     
-    std::vector<double> rmse_2d_reproj_wt_centroid_min3d = calculateRMSE(mycalib.cam_2d_points, lv_2d_projected_min3d);
-    cout << "min3d [rmse_2d_reproj_u, rmse_2d_reproj_v, rmse_2d_reproj_total] = \n[";
-    for(auto it : rmse_2d_reproj_wt_centroid_min3d) cout << it << " ";
-    cout << "]" << endl;
+    // std::vector<double> rmse_2d_reproj_wt_centroid_min3d = calculateRMSE(mycalib.cam_2d_points, lv_2d_projected_min3d);
+    // cout << "min3d [rmse_2d_reproj_u, rmse_2d_reproj_v, rmse_2d_reproj_total] = \n[";
+    // for(auto it : rmse_2d_reproj_wt_centroid_min3d) cout << it << " ";
+    // cout << "]" << endl;
 
     // // min2d
     // cv::Mat Tr_l2c_min2d_cv;
@@ -369,9 +383,9 @@ void ExtCalib(pcl::PointCloud<pcl::PointXYZ>::Ptr laser_cloud, pcl::PointCloud<p
         cout << "<<<<< opening file " << os_calibfile_log.str() << endl;
         savefile_calib_log << currentDateTime() << "," << ref_ns+"_min3d" << "," << sample_sequence.size();
         for(auto p : calib_result_6dof_min3d){  savefile_calib_log << "," << p;}
-        for(int i = 0; i < 9; i++){ savefile_calib_log << "," << R_min3d(i);}
-        for(auto p : align_err_min3d){ savefile_calib_log << "," << p;}
-        for(auto p : rmse_2d_reproj_wt_centroid_min3d){ savefile_calib_log << "," << p;}
+        // for(int i = 0; i < 9; i++){ savefile_calib_log << "," << R_min3d(i);}
+        // for(auto p : align_err_min3d){ savefile_calib_log << "," << p;}
+        // for(auto p : rmse_2d_reproj_wt_centroid_min3d){ savefile_calib_log << "," << p;}
         savefile_calib_log << endl;
         savefile_calib_log.close();
 
@@ -564,6 +578,19 @@ bool timerCallback()
 
         commissioning_tools::CalibrationUpdate calib_update_msg;
         calib_update_msg.result.result = calib_update_msg.result.REJECTED;
+
+        try
+        {
+            calib_update_msg.original = tfBuffer_.lookupTransform(cloud_mount_link_frame_id, image_mount_link_frame_id, ros::Time(0), ros::Duration(1.0));
+            calib_update_msg.calibrated = tfBuffer_.lookupTransform(cloud_mount_link_frame_id, lvt2calib_camera_mount_link_frame_id, ros::Time(0), ros::Duration(1.0));    
+        }
+        catch(tf2::TransformException& ex)
+        {
+            ROS_ERROR("%s", ex.what());
+        }
+
+    calib_result_pub_.publish(calib_update_msg);
+
         calib_result_pub_.publish(calib_update_msg);
 
         return false;

@@ -2,8 +2,8 @@
   <arg name="ifCompressed" default="false"/>
   <arg name="rgb_camera_name" default="vmpr"/>
 
-  <arg name="image_tp" default="/$(arg rgb_camera_name)_camera_color/image_raw"/>
-  <arg name="camera_info_topic" default="/$(arg rgb_camera_name)_camera_color/camera_info"/>
+  <arg name="image_tp" default="/$(arg rgb_camera_name)_color/image_raw"/>
+  <arg name="camera_info_topic" default="/$(arg rgb_camera_name)_color/camera_info"/>
   <arg name="isDarkBoard" default="false"/>
   <arg name="ns_" default="rgb"/>
 
@@ -20,6 +20,7 @@
     <arg name="isRGB" value="true"/>
     <arg name="isDarkBoard" value="$(arg isDarkBoard)"/>
     <arg name="ns_" value="$(arg ns_)"/>
+    <arg name="camera_name" value="$(arg rgb_camera_name)"/>
     
     <arg name="camera_info_topic" value="$(arg camera_info_topic)"/>
     <arg name="image_tp" value="$(arg image_tp)"/>

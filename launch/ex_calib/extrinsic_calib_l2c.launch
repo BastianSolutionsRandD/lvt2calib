@@ -2,22 +2,22 @@
     <arg name="stdout" default="screen"/>
     <arg name="useDemo" default="false"/>
 
-    <arg name="camera_name" default="center"/>
+    <arg name="camera_name" default="center_camera"/>
 
     <arg name="is_multi_exp" default="false"/>
     <arg name="is_auto_mode" default="false"/>
-	<arg name="camera_info_topic" default="/$(arg camera_name)_camera_color/camera_info"/>
+	<arg name="camera_info_topic" default="/$(arg camera_name)_color/camera_info"/>
     <arg name="ns_l" default="depth_camera"/>
     <arg name="ns_c" default="rgb"/>
 
-    <node type="rviz" name="rviz_$(arg camera_name)" pkg="rviz" args="-d $(find lvt2calib)/rviz/$(arg camera_name)_depth_camera_pattern.rviz" />
+    <node type="rviz" name="rviz_$(arg camera_name)" pkg="rviz" args="-d $(find lvt2calib)/rviz/$(arg camera_name)_depth_pattern.rviz" />
 
-    <arg name="image_frame_id" default="$(arg camera_name)_camera_color_optical_frame"/>
-    <arg name="cloud_frame_id" default="$(arg camera_name)_camera_depth_optical_frame"/>
+    <arg name="image_frame_id" default="$(arg camera_name)_color_optical_frame"/>
+    <arg name="cloud_frame_id" default="$(arg camera_name)_depth_optical_frame"/>
     <!-- <arg name="cloud_frame_id" default="sick_visionary_t_mini_depth_optical_frame"/> -->
 
-    <arg name="image_mount_link_frame_id" default="$(arg camera_name)_camera_triton_mount_link"/>
-    <arg name="cloud_mount_link_frame_id" default="$(arg camera_name)_camera_helios2_mount_link"/>
+    <arg name="image_mount_link_frame_id" default="$(arg camera_name)_triton_mount_link"/>
+    <arg name="cloud_mount_link_frame_id" default="$(arg camera_name)_helios2_mount_link"/>
     <!-- <arg name="cloud_mount_link_frame_id" default="sick_visionary_t_mini_depth_mount_link"/> -->
 
 

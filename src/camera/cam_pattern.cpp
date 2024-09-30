@@ -28,6 +28,8 @@
 #include <lvt2calib/CameraConfig.h>
 #include "geometry_msgs/Point.h"
 
+#include <ultra_msgs/CameraCalibrationStatus.h>
+
 #define DEBUG 0
 #define LOG_DETECTION 0
 
@@ -45,12 +47,14 @@ ros::Publisher circle_center_pub, cumulative_pub;
 ros::Publisher cam_2d_circle_centers_pub;
 
 ros::Subscriber cam_info_sub;
+ros::Subscriber calib_status_sub_;
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr cumulative_cloud(new pcl::PointCloud<pcl::PointXYZ>);   // Accumulated centers
 
 // Parameters
 string image_tp_ = "";  // string image_tp_ = "/camera/left/image_rect_color";
 string ns_str = "";
+string camera_name = "";
 string camera_info_topic_ = "";
 int threshold_value_ = 100;
 double blob_minCircularity_ = 0.8, blob_minInertiaRatio_ = 0.1, blob_minArea_ = 50;
@@ -70,6 +74,8 @@ bool use_darkboard = false;
 bool use_morph = false;
 bool camera_info_received_ = false;
 
+ultra_msgs::CameraCalibrationStatus latest_calib_msg_;
+
 string win_raw_img = "1.raw_image", win_undist_img = "2.undistorted_image", win_gray_img = "2.1 gray image", win_circle_img = "3.Draw circle centers on undistorted image"; 
 
 Mat A; 
@@ -85,6 +91,11 @@ void load_params()
     if(ros::param::get("~ns_", ns_str))
     {
         ROS_INFO("Retrieved param 'ns_': %s", ns_str.c_str());
+    }
+
+    if(ros::param::get("~camera_name", camera_name))
+    {
+        ROS_INFO("Retrieved param 'camera_name': %s", camera_name.c_str());
     }
 
     if(ros::param::get("~is_rgb", is_rgb))
@@ -419,18 +430,22 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
         std::vector<cv::Point2f> xw;
         
         // TODO: fix order
-
-        //CENTER 4-4:
-        xw.push_back(Point2f(static_cast<float>(p1x_), static_cast<float>(p1y_))); // (300.0f,0.0f)
-        xw.push_back(Point2f(static_cast<float>(p2x_), static_cast<float>(p2y_))); // (300.0f,300.0f)
-        xw.push_back(Point2f(static_cast<float>(p3x_), static_cast<float>(p3y_))); // (0.0f,0.0f)
-        xw.push_back(Point2f(static_cast<float>(p4x_), static_cast<float>(p4y_))); // (0.0f,300.0f)
-
         //VMPR 4-4:
-        // xw.push_back(Point2f(static_cast<float>(p4x_), static_cast<float>(p4y_))); // (0.0f,300.0f)
-        // xw.push_back(Point2f(static_cast<float>(p2x_), static_cast<float>(p2y_))); // (300.0f,300.0f)
-        // xw.push_back(Point2f(static_cast<float>(p3x_), static_cast<float>(p3y_))); // (0.0f,0.0f)
-        // xw.push_back(Point2f(static_cast<float>(p1x_), static_cast<float>(p1y_))); // (300.0f,0.0f)
+        if(camera_name == "vmpr_camera")
+        {
+            xw.push_back(Point2f(static_cast<float>(p4x_), static_cast<float>(p4y_))); // (0.0f,300.0f)
+            xw.push_back(Point2f(static_cast<float>(p2x_), static_cast<float>(p2y_))); // (300.0f,300.0f)
+            xw.push_back(Point2f(static_cast<float>(p3x_), static_cast<float>(p3y_))); // (0.0f,0.0f)
+            xw.push_back(Point2f(static_cast<float>(p1x_), static_cast<float>(p1y_))); // (300.0f,0.0f)
+        }
+        else
+        {
+            //CENTER 4-4:
+            xw.push_back(Point2f(static_cast<float>(p1x_), static_cast<float>(p1y_))); // (300.0f,0.0f)
+            xw.push_back(Point2f(static_cast<float>(p2x_), static_cast<float>(p2y_))); // (300.0f,300.0f)
+            xw.push_back(Point2f(static_cast<float>(p3x_), static_cast<float>(p3y_))); // (0.0f,0.0f)
+            xw.push_back(Point2f(static_cast<float>(p4x_), static_cast<float>(p4y_))); // (0.0f,300.0f)
+        }
         
 
         // Initialize translation and rotation matrix
@@ -633,8 +648,21 @@ void image_process(cv::Mat original_image, const sensor_msgs::ImageConstPtr& ima
 }
 
 
+void cameraCalibrationStatusCallback(const ultra_msgs::CameraCalibrationStatus& msg) 
+{
+    latest_calib_msg_ = msg;
+}
+
+
 void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
+
+    if(latest_calib_msg_.calib_status != latest_calib_msg_.AT_POSITION)
+    {
+        ROS_WARN_THROTTLE(1.0, "Camera pattern detector waiting for calibration status to be at position");
+        return;
+    }
+
     if(!camera_info_received_)
     {
         ROS_WARN("Waiting for image info on topic %s", camera_info_topic_.c_str());
@@ -685,6 +713,7 @@ int main(int argc, char* argv[])
     image_transport::ImageTransport it(nh);
     image_transport::Subscriber sub = it.subscribe(image_tp_, 1, imageCallback);
 
+    calib_status_sub_ = nh.subscribe("camera_calibration_status", 1, cameraCalibrationStatusCallback);
     cam_info_sub = nh.subscribe(camera_info_topic_, 1, cameraInfoCallback);
 
     dynamic_reconfigure::Server<lvt2calib::CameraConfig> server;
@@ -721,7 +750,7 @@ int main(int argc, char* argv[])
             }
             catch(std::exception& ex)
             {
-                ROS_WARN("UNable to destroy window");
+                ROS_WARN("Unable to destroy window");
             }
             if(end_process)
                 break;
